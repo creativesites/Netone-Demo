@@ -12,13 +12,13 @@ function Card({
   icon: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-white/5 bg-white/[0.03] p-4">
+    <div className="card relative overflow-hidden p-5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-slate-400">{label}</span>
-        <span className="text-base">{icon}</span>
+        <span className="text-[13px] font-medium text-ink-500">{label}</span>
+        <span className="text-base opacity-80">{icon}</span>
       </div>
-      <div className="mt-2 text-3xl font-bold tabular-nums text-white">{value}</div>
-      <div className={`absolute inset-x-0 bottom-0 h-0.5 ${accent}`} />
+      <div className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-ink-900">{value}</div>
+      <div className={`absolute inset-x-0 bottom-0 h-1 ${accent}`} />
     </div>
   );
 }

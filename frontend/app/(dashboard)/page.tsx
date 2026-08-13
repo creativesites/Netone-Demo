@@ -58,7 +58,7 @@ export default function DashboardPage() {
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <div>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Live Activity</h2>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">Live Activity</h2>
             <LiveActivity active={active} />
           </div>
           <Timeline events={currentEvents} />
@@ -66,7 +66,7 @@ export default function DashboardPage() {
 
         <div className="space-y-4">
           <div>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Current Lead</h2>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">Current Lead</h2>
             <LeadDetail lead={detailLead} />
           </div>
           <RecentLeads leads={recent} />

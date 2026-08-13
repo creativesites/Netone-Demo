@@ -38,33 +38,27 @@ export function Timeline({ events }: { events: LeadEvent[] }) {
   const shown = events.slice(-14);
   if (!events.length) {
     return (
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 text-center text-sm text-slate-500">
+      <div className="card p-5 text-center text-sm text-ink-500">
         Activity timeline will populate as the lead is processed.
       </div>
     );
   }
   return (
-    <div className="rounded-xl border border-white/5 bg-white/[0.03] p-5">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <div className="card p-5">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">
         Activity Timeline
       </div>
-      <ol className="relative space-y-3 border-l border-white/10 pl-4">
+      <ol className="relative space-y-3 border-l border-line pl-4">
         {shown.map((e) => (
           <li key={e.id} className="animate-fade-up relative">
             <span
-              className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-slate-950 ${
-                e.status === 'error'
-                  ? 'bg-rose-500'
-                  : e.status === 'info'
-                    ? 'bg-amber-400'
-                    : 'bg-emerald-400'
+              className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-white ${
+                e.status === 'error' ? 'bg-rose-500' : e.status === 'info' ? 'bg-amber-500' : 'bg-emerald-500'
               }`}
             />
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm text-slate-200">{label(e)}</span>
-              <span className="shrink-0 text-[10px] tabular-nums text-slate-600">
-                {fmt(e.created_at)}
-              </span>
+              <span className="text-sm text-ink-800">{label(e)}</span>
+              <span className="shrink-0 text-[10px] tabular-nums text-ink-400">{fmt(e.created_at)}</span>
             </div>
           </li>
         ))}

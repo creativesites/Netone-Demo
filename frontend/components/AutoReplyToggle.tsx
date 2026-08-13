@@ -27,23 +27,13 @@ export function AutoReplyToggle() {
       onClick={toggle}
       disabled={pending}
       title="Autonomous WhatsApp auto-reply"
-      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs transition-colors hover:bg-white/[0.06] disabled:opacity-60"
+      className="flex items-center gap-2 rounded-xl border border-line bg-white px-3 py-1.5 text-xs transition-colors hover:bg-surface-muted disabled:opacity-60"
     >
-      <span className="hidden sm:inline text-slate-400">Auto-reply</span>
-      <span
-        className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
-          enabled ? 'bg-emerald-500' : 'bg-slate-600'
-        }`}
-      >
-        <span
-          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-            enabled ? 'translate-x-4' : 'translate-x-1'
-          }`}
-        />
+      <span className="hidden text-ink-500 sm:inline">Auto-reply</span>
+      <span className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${enabled ? 'bg-emerald-500' : 'bg-ink-400'}`}>
+        <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-4' : 'translate-x-1'}`} />
       </span>
-      <span className={`font-semibold ${enabled ? 'text-emerald-300' : 'text-slate-400'}`}>
-        {enabled ? 'On' : 'Off'}
-      </span>
+      <span className={`font-semibold ${enabled ? 'text-emerald-600' : 'text-ink-500'}`}>{enabled ? 'On' : 'Off'}</span>
     </button>
   );
 }

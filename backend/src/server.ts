@@ -13,6 +13,7 @@ import { streamRoutes } from './routes/stream.js';
 import { leadRoutes } from './routes/leads.js';
 import { settingsRoutes } from './routes/settings.js';
 import { inboxRoutes } from './routes/inbox.js';
+import { whatsappRoutes } from './routes/whatsapp.js';
 
 /** Push current DB state into Firestore so a freshly-opened dashboard is populated. */
 async function seedMirror(): Promise<void> {
@@ -62,6 +63,7 @@ async function main() {
   await app.register(leadRoutes);
   await app.register(settingsRoutes);
   await app.register(inboxRoutes);
+  await app.register(whatsappRoutes);
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
   logger.info(

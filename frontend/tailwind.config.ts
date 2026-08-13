@@ -6,11 +6,22 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: '#eef4ff',
-          100: '#d9e6ff',
-          500: '#3b6ef6',
-          600: '#2f5fe0',
+          50: '#eef5ff',
+          100: '#dbeafe',
+          500: '#0071e3', // Apple blue
+          600: '#0077ed',
         },
+        ink: {
+          900: '#1d1d1f', // Apple near-black
+          700: '#3a3a3c',
+          500: '#6e6e73', // Apple secondary gray
+          400: '#86868b',
+        },
+        surface: {
+          DEFAULT: '#ffffff',
+          muted: '#f5f5f7', // Apple system gray background
+        },
+        line: '#e5e5e7',
       },
       keyframes: {
         'pulse-ring': {

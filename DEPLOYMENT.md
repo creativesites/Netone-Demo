@@ -157,14 +157,21 @@ a managed Postgres. They provide HTTPS automatically.
 
 ## 4. Link WhatsApp (one-time per session)
 
-The Baileys session persists on the `/app/session` volume, so you only scan once
+The Baileys session persists on the `/app/session` volume, so you only link once
 (and again only if you log the device out).
 
-1. Reach the QR: `https://qr.yourdomain.com/qr` (Option A) or the whatsapp
-   service URL `/qr` (Option B). Locally: `http://localhost:3000/qr`.
-2. On the demo phone: **WhatsApp → Linked devices → Link a device** → scan.
-3. The dashboard header flips **WhatsApp → Connected**. Check
-   `GET <whatsapp>/status` any time.
+**Easiest: link from the dashboard.** The header shows a **WhatsApp · Connect**
+button. Click it and choose either:
+- **Scan QR** — open WhatsApp → *Linked devices → Link a device* → scan.
+- **Link with code** — enter the phone number, get an 8-character code, then on
+  the phone *Linked devices → Link with phone number instead* → enter the code.
+
+The header flips to **WhatsApp · Connected** automatically once linked. (This
+works because the backend proxies `/api/whatsapp/*` to the Baileys service, so
+the browser never needs direct access to it.)
+
+You can still reach the raw QR at the whatsapp service's `/qr` if preferred.
+Check status any time with `GET <backend>/api/whatsapp/status`.
 
 Keep the volume across redeploys and the link survives restarts. Never commit the
 `session/` directory (it's git-ignored).

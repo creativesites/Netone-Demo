@@ -33,6 +33,10 @@ let currentQr = null;
 let connectionStatus = 'disconnected'; // 'disconnected' | 'connecting' | 'connected'
 let retryCount = 0;
 let lastConnectedAt = null;
+// Pairing-code (link-with-phone-number) state. When pairingPhone is set we ask
+// Baileys for an 8-char code instead of showing a QR.
+let pairingPhone = null;
+let currentPairingCode = null;
 
 if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
@@ -70,6 +74,26 @@ async function forwardToBackend(payload) {
     await axios.post(BACKEND_WEBHOOK_URL, payload, { headers, timeout: 15000 });
 }
 
+/** Ask Baileys for a link-with-phone-number pairing code (formatted XXXX-XXXX). */
+async function requestPairingCodeWithRetry(phone, maxAttempts = 3) {
+    const digits = String(phone).replace(/\D/g, '').replace(/^0+/, '');
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            if (!sock) throw new Error('socket not ready');
+            const raw = await sock.requestPairingCode(digits);
+            const clean = String(raw).replace(/[^A-Za-z0-9]/g, '');
+            currentPairingCode = clean.length === 8 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+            connectionStatus = 'connecting';
+            logger.info(`Pairing code generated for ${digits}: ${currentPairingCode}`);
+            return currentPairingCode;
+        } catch (err) {
+            logger.error(`requestPairingCode failed (attempt ${attempt}): ${err.message}`);
+            if (attempt === maxAttempts) throw err;
+            await new Promise((r) => setTimeout(r, 2000 * attempt));
+        }
+    }
+}
+
 async function connectToWhatsApp() {
     try {
         const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
@@ -94,10 +118,17 @@ async function connectToWhatsApp() {
 
         sock.ev.on('creds.update', saveCreds);
 
+        // Pairing-code path: if a phone number was supplied and this session is
+        // not yet registered, request an 8-char link code after the WS handshake.
+        if (pairingPhone && !state.creds.registered) {
+            setTimeout(() => requestPairingCodeWithRetry(pairingPhone), 3000);
+        }
+
         sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect, qr } = update;
 
-            if (qr) {
+            // Only surface a QR when we're not in pairing-code mode.
+            if (qr && !pairingPhone) {
                 currentQr = qr;
                 connectionStatus = 'connecting';
                 logger.info('New QR code received — scan to link device.');
@@ -106,6 +137,8 @@ async function connectToWhatsApp() {
             if (connection === 'open') {
                 connectionStatus = 'connected';
                 currentQr = null;
+                pairingPhone = null;
+                currentPairingCode = null;
                 retryCount = 0;
                 lastConnectedAt = new Date().toISOString();
                 logger.info('WhatsApp connection open.');
@@ -196,28 +229,52 @@ app.get('/status', (req, res) => {
     res.json({
         status: connectionStatus,
         hasQr: !!currentQr,
+        pairingCode: currentPairingCode,
+        method: pairingPhone ? 'code' : 'qr',
         lastConnectedAt,
         user: sock?.user?.id || null,
     });
 });
 
+// Start a QR-based link: clears any session and shows a fresh QR.
+app.post('/connect/qr', (req, res) => {
+    startFresh({ clearSession: true, phone: null });
+    res.json({ status: 'connecting', method: 'qr' });
+});
+
+// Start a link-with-code flow for a given phone number (E.164 or local digits).
+app.post('/connect/code', (req, res) => {
+    const phone = String(req.body?.phone || '').replace(/\D/g, '');
+    if (phone.length < 7) return res.status(400).json({ error: 'valid phone number required' });
+    startFresh({ clearSession: true, phone });
+    res.json({ status: 'connecting', method: 'code' });
+});
+
+// Backwards-compatible restart.
 app.post('/restart', (req, res) => {
-    try {
-        currentQr = null;
-        connectionStatus = 'connecting';
-        retryCount = 0;
-        if (sock) { try { sock.ws.close(); } catch (e) {} sock = null; }
-        if (req.body?.force === true && fs.existsSync(SESSION_DIR)) {
-            logger.warn('Force restart — clearing session directory.');
+    startFresh({ clearSession: req.body?.force === true, phone: null });
+    res.json({ status: 'restarting' });
+});
+
+// Tear down and reconnect, optionally wiping credentials / setting a pairing phone.
+function startFresh({ clearSession, phone }) {
+    currentQr = null;
+    currentPairingCode = null;
+    pairingPhone = phone || null;
+    connectionStatus = 'connecting';
+    retryCount = 0;
+    if (sock) { try { sock.ws.close(); } catch (e) {} sock = null; }
+    if (clearSession && fs.existsSync(SESSION_DIR)) {
+        logger.warn('Clearing session directory for fresh link.');
+        try {
             fs.rmSync(SESSION_DIR, { recursive: true, force: true });
             fs.mkdirSync(SESSION_DIR, { recursive: true });
+        } catch (err) {
+            logger.error(`Error clearing session dir: ${err.message}`);
         }
-        setTimeout(connectToWhatsApp, 500);
-        res.json({ status: 'restarting' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
     }
-});
+    setTimeout(connectToWhatsApp, 500);
+}
 
 // Outgoing message support (e.g. sales follow-up acknowledgement to the lead).
 app.post('/send', async (req, res) => {
