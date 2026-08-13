@@ -1,0 +1,69 @@
+# NetOne Lead Automation — full demo stack.
+# Usage: cp .env.example .env && fill values, then `docker compose up --build`.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: netone-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-netone}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netone_demo_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-netone_leads}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netone} -d ${POSTGRES_DB:-netone_leads}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: netone-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Service-networking overrides (container hostnames, not localhost).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-netone}:${POSTGRES_PASSWORD:-netone_demo_pw}@postgres:5432/${POSTGRES_DB:-netone_leads}
+      WHATSAPP_SERVICE_URL: http://whatsapp:3000
+      BACKEND_PORT: 4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  whatsapp:
+    build: ./whatsapp-service
+    container_name: netone-whatsapp
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      SESSION_DIR: /app/session
+      BACKEND_WEBHOOK_URL: http://backend:4000/api/channels/whatsapp/webhook
+      WEBHOOK_SHARED_SECRET: ${WEBHOOK_SHARED_SECRET:-}
+    ports:
+      - "3000:3000"
+    volumes:
+      # WhatsApp/Baileys session credentials persist here across restarts.
+      - ./data/whatsapp_session:/app/session
+    depends_on:
+      - backend
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the client bundle at build time — must be browser-reachable.
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:4000}
+    container_name: netone-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

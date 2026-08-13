@@ -1,0 +1,31 @@
+# ── Secrets ──────────────────────────────────────────────
+.env
+.env.local
+*.local.env
+
+# ── WhatsApp / Baileys session credentials (NEVER commit) ─
+whatsapp-service/session/
+.local/
+data/whatsapp_session/
+
+# ── Node ─────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ── Builds ───────────────────────────────────────────────
+dist/
+build/
+backend/dist/
+frontend/.next/
+frontend/out/
+
+# ── Postgres local test cluster ──────────────────────────
+.pgdata/
+
+# ── Editor / OS ──────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+*.log

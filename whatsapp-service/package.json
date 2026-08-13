@@ -1,0 +1,17 @@
+{
+  "name": "netone-whatsapp-service",
+  "version": "1.0.0",
+  "description": "Channel adapter: Baileys WhatsApp bridge that forwards normalized inbound messages to the NetOne lead backend.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.18",
+    "axios": "^1.7.7",
+    "express": "^4.21.0",
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4"
+  },
+  "license": "ISC"
+}
