@@ -34,6 +34,8 @@ function fmt(iso: string) {
 }
 
 export function Timeline({ events }: { events: LeadEvent[] }) {
+  // Keep the panel readable — show the most recent activity only.
+  const shown = events.slice(-14);
   if (!events.length) {
     return (
       <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 text-center text-sm text-slate-500">
@@ -47,7 +49,7 @@ export function Timeline({ events }: { events: LeadEvent[] }) {
         Activity Timeline
       </div>
       <ol className="relative space-y-3 border-l border-white/10 pl-4">
-        {events.map((e) => (
+        {shown.map((e) => (
           <li key={e.id} className="animate-fade-up relative">
             <span
               className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-slate-950 ${

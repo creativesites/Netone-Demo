@@ -29,3 +29,7 @@ frontend/out/
 .idea/
 .vscode/
 *.log
+
+# Firebase admin service account (NEVER commit)
+backend/secrets/
+*firebase-admin*.json

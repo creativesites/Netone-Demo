@@ -46,3 +46,46 @@ CREATE TABLE IF NOT EXISTS processed_messages (
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (channel, external_message_id)
 );
+
+-- Lead profile enrichment collected conversationally by the agent.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS collected        JSONB   NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN NOT NULL DEFAULT false;
+
+-- ── Inbox: conversations + messages (mirrored to Firestore) ──
+CREATE TABLE IF NOT EXISTS conversations (
+  id                   SERIAL PRIMARY KEY,
+  channel              TEXT        NOT NULL,
+  external_contact_id  TEXT        NOT NULL,
+  contact_name         TEXT,
+  phone                TEXT,
+  is_lead              BOOLEAN     NOT NULL DEFAULT false,
+  lead_id              INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+  last_message         TEXT,
+  last_direction       TEXT,                       -- inbound | outbound
+  last_message_at      TIMESTAMPTZ,
+  unread_count         INTEGER     NOT NULL DEFAULT 0,
+  intent               TEXT,
+  sentiment            TEXT,                        -- positive | neutral | negative
+  ai_priority          TEXT,                        -- high | medium | low
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT conversations_channel_contact_uniq UNIQUE (channel, external_contact_id)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id                   SERIAL PRIMARY KEY,
+  conversation_id      INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  direction            TEXT    NOT NULL,            -- inbound | outbound
+  sender               TEXT    NOT NULL DEFAULT 'contact', -- contact | agent | system
+  body                 TEXT    NOT NULL,
+  external_message_id  TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages(conversation_id, created_at);
+
+-- ── Runtime settings (auto-reply toggle, etc.) ──────────────
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        TEXT PRIMARY KEY,
+  value      JSONB       NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

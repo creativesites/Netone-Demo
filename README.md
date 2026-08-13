@@ -28,13 +28,46 @@ whatsapp-service/   Baileys WhatsApp bridge (own container + persistent session)
 backend/            Fastify + TypeScript
                     ├─ adapters/channels/  WhatsApp → NormalizedLeadEvent
                     ├─ adapters/crm/       CRMAdapter interface + Bitrix24 (real)
-                    ├─ services/           AI (DeepSeek→Gemini→deterministic),
+                    ├─ services/           AI gatekeeper + conversational agent
+                    │                      (DeepSeek→Gemini→deterministic),
                     │                      qualification, lead orchestrator
-                    ├─ events/             SSE pub/sub bus
-                    └─ db/                 Postgres (leads, lead_events, dedup)
-frontend/           Next.js + Tailwind real-time dashboard (SSE)
-postgres/           PostgreSQL 16
+                    ├─ firebase.ts         Firestore mirror (real-time layer)
+                    ├─ events/             SSE pub/sub bus (live pipeline)
+                    └─ db/                 Postgres (leads, conversations,
+                                           messages, lead_events, dedup, settings)
+frontend/           Next.js + Tailwind console (Clerk auth)
+                    ├─ Dashboard           live pipeline + lead intelligence
+                    └─ Inbox               WhatsApp-style conversations + AI agent
+postgres/           PostgreSQL 16 (source of truth)
+Firebase/           Firestore (real-time) · Clerk (auth)
 ```
+
+### Behavior
+
+- **Lead gatekeeper.** Every inbound message is AI-classified first. Only genuine
+  sales leads enter the CRM pipeline; non-leads (greetings, spam, support noise)
+  stay in the inbox and are never pushed to Bitrix or counted as leads.
+- **Conversational agent ("Nia").** Once a lead is detected, the agent replies on
+  WhatsApp in a natural, friendly, professional tone and collects the core profile
+  — name, product, financing preference, budget, location — over several turns,
+  then enriches the Bitrix lead. Fully autonomous, with a live on/off toggle in
+  the dashboard header.
+- **Real-time.** The backend (Firebase Admin) mirrors conversations, messages,
+  leads and metrics to **Firestore**; the console subscribes with `onSnapshot`
+  listeners. A REST fallback keeps the UI live even before Firestore is enabled.
+  The animated live-pipeline uses Server-Sent Events.
+- **Auth.** The console is protected by **Clerk**. Set `DISABLE_AUTH=true` to run
+  the demo without forcing sign-in.
+
+### Real-time layer setup (Firebase)
+
+The backend needs the **Cloud Firestore API enabled** and a database created:
+open the [Firebase console](https://console.firebase.google.com/) → your project →
+**Firestore Database → Create database** (Native mode). Until then the backend logs
+a one-time notice and the UI runs on the REST fallback — nothing breaks.
+
+The Firebase Admin service-account JSON lives at `backend/secrets/firebase-admin.json`
+(git-ignored). The public web config goes in `NEXT_PUBLIC_FIREBASE_*` env vars.
 
 ### Design principles
 - **Channel-agnostic core.** Every channel adapter emits the same

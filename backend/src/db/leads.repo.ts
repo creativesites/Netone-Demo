@@ -96,6 +96,19 @@ export async function updateBitrix(
   return res.rows[0];
 }
 
+export async function updateCollected(
+  leadId: number,
+  collected: import('../types.js').CollectedProfile,
+  complete: boolean
+): Promise<Lead> {
+  const res = await query<Lead>(
+    `UPDATE leads SET collected = $2, profile_complete = $3, updated_at = now()
+      WHERE id = $1 RETURNING *`,
+    [leadId, JSON.stringify(collected), complete]
+  );
+  return res.rows[0];
+}
+
 export async function recordEvent(
   leadId: number | null,
   eventType: string,

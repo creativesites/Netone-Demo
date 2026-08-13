@@ -29,8 +29,12 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-netone}:${POSTGRES_PASSWORD:-netone_demo_pw}@postgres:5432/${POSTGRES_DB:-netone_leads}
       WHATSAPP_SERVICE_URL: http://whatsapp:3000
       BACKEND_PORT: 4000
+      FIREBASE_ADMIN_CREDENTIALS: ./secrets/firebase-admin.json
     ports:
       - "4000:4000"
+    volumes:
+      # Firebase Admin service-account JSON (git-ignored on the host).
+      - ./backend/secrets:/app/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,10 +60,21 @@ services:
     build:
       context: ./frontend
       args:
-        # Baked into the client bundle at build time — must be browser-reachable.
+        # Baked into the client bundle at build time.
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:4000}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
     container_name: netone-frontend
     restart: unless-stopped
+    environment:
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      # Set DISABLE_AUTH=true to run the console without forcing Clerk sign-in.
+      DISABLE_AUTH: ${DISABLE_AUTH:-}
     ports:
       - "3001:3001"
     depends_on:

@@ -28,8 +28,12 @@ export type Intent =
 export type PurchaseIntent = 'low' | 'medium' | 'high';
 export type Qualification = 'qualified' | 'needs_follow_up' | 'unqualified';
 
+export type Sentiment = 'positive' | 'neutral' | 'negative';
+
 export interface LeadAnalysis {
   intent: Intent;
+  isLead: boolean; // gatekeeper: does this message represent a sales lead?
+  sentiment: Sentiment;
   product: string | null;
   financingInterest: boolean;
   purchaseIntent: PurchaseIntent;
@@ -37,6 +41,29 @@ export interface LeadAnalysis {
   reasoning: string;
   summary: string;
   aiSource: 'deepseek' | 'gemini' | 'deterministic';
+}
+
+/** Structured lead profile the conversational agent collects over turns. */
+export interface CollectedProfile {
+  name: string | null;
+  product: string | null;
+  financing: string | null;
+  budget: string | null;
+  location: string | null;
+}
+
+export const REQUIRED_FIELDS: (keyof CollectedProfile)[] = [
+  'name',
+  'product',
+  'financing',
+  'budget',
+  'location',
+];
+
+export interface AgentTurn {
+  reply: string;
+  collected: CollectedProfile;
+  complete: boolean;
 }
 
 export interface Lead {
@@ -60,6 +87,8 @@ export interface Lead {
   bitrix_synced_at: string | null;
   assigned_to: string | null;
   next_action: string | null;
+  collected: CollectedProfile;
+  profile_complete: boolean;
   created_at: string;
   updated_at: string;
 }

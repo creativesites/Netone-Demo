@@ -5,7 +5,7 @@
  */
 import { config, flags } from '../../config.js';
 import { logger } from '../../logger.js';
-import type { Lead, LeadAnalysis, Qualification } from '../../types.js';
+import type { CollectedProfile, Lead, LeadAnalysis, Qualification } from '../../types.js';
 import type { CRMAdapter, CreateLeadResult } from './crm.adapter.js';
 
 const TIMEOUT_MS = 12000;
@@ -56,6 +56,18 @@ async function callBitrix(method: string, body: unknown): Promise<any> {
   throw lastErr;
 }
 
+function collectedLines(collected: CollectedProfile): string[] {
+  return [
+    '',
+    'Collected profile:',
+    `- Name: ${collected.name ?? '—'}`,
+    `- Product: ${collected.product ?? '—'}`,
+    `- Financing: ${collected.financing ?? '—'}`,
+    `- Budget: ${collected.budget ?? '—'}`,
+    `- Location: ${collected.location ?? '—'}`,
+  ];
+}
+
 export const bitrix24Adapter: CRMAdapter = {
   name: 'bitrix24',
 
@@ -79,6 +91,7 @@ export const bitrix24Adapter: CRMAdapter = {
       `Purchase intent: ${analysis.purchaseIntent}`,
       `Qualification: ${analysis.qualification}`,
       `AI summary: ${analysis.summary}`,
+      ...collectedLines(lead.collected),
     ];
 
     const fields: Record<string, unknown> = {
@@ -107,6 +120,28 @@ export const bitrix24Adapter: CRMAdapter = {
       return { ok: true, status: 'synced', crmLeadId, raw: json };
     } catch (err) {
       return { ok: false, status: 'failed', error: String(err) };
+    }
+  },
+
+  async updateLead(crmLeadId: string, lead: Lead, analysis: LeadAnalysis): Promise<boolean> {
+    if (!flags.hasBitrix) return false;
+    const fields: Record<string, unknown> = {
+      STATUS_ID: statusFor(analysis.qualification),
+      COMMENTS: [
+        `AI summary: ${analysis.summary}`,
+        `Qualification: ${analysis.qualification}`,
+        ...collectedLines(lead.collected),
+      ].join('\n'),
+    };
+    if (lead.collected.name) fields.NAME = lead.collected.name;
+    if (lead.phone) fields.PHONE = [{ VALUE: lead.phone, VALUE_TYPE: 'MOBILE' }];
+    try {
+      await callBitrix('crm.lead.update', { id: crmLeadId, fields });
+      logger.info({ crmLeadId }, 'Bitrix24 lead enriched');
+      return true;
+    } catch (err) {
+      logger.warn({ err: String(err) }, 'Bitrix24 update failed');
+      return false;
     }
   },
 

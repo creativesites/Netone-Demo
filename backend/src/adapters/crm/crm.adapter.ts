@@ -16,5 +16,7 @@ export interface CRMAdapter {
   name: string;
   isConfigured(): boolean;
   createLead(lead: Lead, analysis: LeadAnalysis): Promise<CreateLeadResult>;
+  /** Enrich an existing CRM lead as the conversation collects more detail. */
+  updateLead(crmLeadId: string, lead: Lead, analysis: LeadAnalysis): Promise<boolean>;
   assignLead(crmLeadId: string, assignedById: string): Promise<boolean>;
 }

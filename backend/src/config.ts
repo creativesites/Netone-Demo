@@ -41,11 +41,21 @@ export const config = {
     assignedById: process.env.BITRIX24_ASSIGNED_BY_ID ?? '',
   },
 
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID ?? '',
+    // Path to the service-account JSON (relative to backend/ or absolute).
+    credentialsPath: process.env.FIREBASE_ADMIN_CREDENTIALS ?? './secrets/firebase-admin.json',
+  },
+
   whatsappServiceUrl: process.env.WHATSAPP_SERVICE_URL ?? 'http://whatsapp:3000',
+
+  // Autonomous auto-reply default (can be toggled at runtime via settings).
+  autoReplyDefault: (process.env.AUTO_REPLY_DEFAULT ?? 'true') === 'true',
 } as const;
 
 export const flags = {
   hasDeepseek: !!config.ai.deepseek.apiKey,
   hasGemini: !!config.ai.gemini.apiKey,
   hasBitrix: !!config.bitrix.webhookUrl,
+  hasFirebase: !!config.firebase.projectId,
 };
