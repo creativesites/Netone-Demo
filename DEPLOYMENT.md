@@ -145,29 +145,51 @@ cp .env.example .env && nano .env          # fill in all backend/whatsapp values
 mkdir -p backend/secrets
 nano backend/secrets/firebase-admin.json   # paste the JSON
 
-docker compose up -d --build               # starts postgres, backend, whatsapp, frontend
-docker compose logs -f whatsapp            # watch for the QR / connection
+# Skip the frontend service if it's deployed on Vercel instead:
+docker compose up -d --build postgres backend whatsapp
+docker compose logs -f backend             # watch it come up
 ```
 
-Then put **HTTPS in front of the backend** (port `4702` by default) so the
-browser can reach it. Easiest is Caddy (auto-TLS):
+All service ports are bound to **127.0.0.1 only** (see `docker-compose.yml`) —
+nothing is reachable from the internet until you put a reverse proxy in front.
+Easiest is Caddy (automatic TLS):
 
 ```
 # /etc/caddy/Caddyfile
 api.yourdomain.com {
     reverse_proxy localhost:4702
 }
-qr.yourdomain.com {           # optional, only needed while linking WhatsApp
-    reverse_proxy localhost:4703
-}
 ```
+
+The WhatsApp QR/pairing-code screens don't need their own public hostname —
+the dashboard's Connect modal reaches them through the backend's
+`/api/whatsapp/*` proxy.
 
 Set the frontend's `NEXT_PUBLIC_BACKEND_URL=https://api.yourdomain.com` on Vercel.
 
 > You can also serve the frontend from this same Compose stack (it's included on
-> port `4701` by default) instead of Vercel — but Vercel is simpler for the Next
-> app. If you use Vercel, you can remove the `frontend` service from
-> `docker-compose.yml`.
+> port `4701` by default, also bound to localhost) instead of Vercel — add a
+> second Caddy site block reverse-proxying to `localhost:4701`.
+
+#### No domain yet — deploying to a bare IP
+
+Let's Encrypt (and therefore Caddy's automatic TLS) needs a real hostname, not
+a bare IP. If you only have a server IP, use a free wildcard DNS service like
+**[sslip.io](https://sslip.io)** — `<anything>.<ip-with-dashes>.sslip.io`
+resolves straight to that IP with no signup, so Caddy can still issue a real,
+browser-trusted certificate:
+
+```
+# e.g. server IP 203.0.113.9 → api.203-0-113-9.sslip.io
+# /etc/caddy/Caddyfile
+api.203-0-113-9.sslip.io {
+    reverse_proxy localhost:4702
+}
+```
+
+Then `NEXT_PUBLIC_BACKEND_URL=https://api.203-0-113-9.sslip.io`. This is a
+real TLS cert (no browser warning) — just an ugly hostname. Swap in a real
+domain later by editing the Caddyfile and reloading (`sudo systemctl reload caddy`).
 
 ### Option B — Managed platform (Railway / Render / Fly.io)
 
@@ -225,7 +247,8 @@ Lock down access later with Firestore security rules (authenticated reads only).
 
 ## 6. Wiring checklist
 
-- [ ] Backend reachable at a **public HTTPS** URL.
+- [ ] Backend reachable at a **public HTTPS** URL (via Caddy/nginx — the
+      container port itself is bound to `127.0.0.1`, not public).
 - [ ] `NEXT_PUBLIC_BACKEND_URL` (Vercel) = that HTTPS URL; redeploy frontend.
 - [ ] `WEBHOOK_SHARED_SECRET` identical on backend **and** whatsapp.
 - [ ] `BACKEND_WEBHOOK_URL` (whatsapp) points at the backend.
@@ -233,6 +256,8 @@ Lock down access later with Firestore security rules (authenticated reads only).
 - [ ] `backend/secrets/firebase-admin.json` present on the backend host.
 - [ ] Bitrix + DeepSeek keys set on the backend.
 - [ ] WhatsApp session volume is persistent.
+- [ ] Firewall (`ufw`/security group) allows only 22, 80, 443 — the raw
+      service ports (`4701`–`4705`) shouldn't be internet-reachable at all.
 
 ---
 

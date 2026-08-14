@@ -4,6 +4,11 @@
 # All ports use the 47xx range by default (POSTGRES_PORT, BACKEND_PORT,
 # WHATSAPP_PORT, FRONTEND_PORT) so this stack won't collide with other demos
 # sharing the same host. Override any of them in .env if needed.
+#
+# Every port below is bound to 127.0.0.1 only — nothing is reachable from the
+# public internet directly. Put a reverse proxy (Caddy/nginx) on the host in
+# front of the backend (and frontend, if served from here) for public HTTPS.
+# See DEPLOYMENT.md for the exact steps, including a bare-IP setup.
 services:
   postgres:
     image: postgres:16-alpine
@@ -14,9 +19,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netone_demo_pw}
       POSTGRES_DB: ${POSTGRES_DB:-netone_leads}
     ports:
-      # Host-side port only — the internal container port stays the Postgres
-      # default (5432); other services reach it over the internal network.
-      - "${POSTGRES_PORT:-4705}:5432"
+      # Host-side port only, bound to localhost — the internal container port
+      # stays the Postgres default (5432); other services reach it over the
+      # internal Docker network regardless.
+      - "127.0.0.1:${POSTGRES_PORT:-4705}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +43,8 @@ services:
       BACKEND_PORT: ${BACKEND_PORT:-4702}
       FIREBASE_ADMIN_CREDENTIALS: ./secrets/firebase-admin.json
     ports:
-      - "${BACKEND_PORT:-4702}:${BACKEND_PORT:-4702}"
+      # Bound to localhost — put Caddy/nginx in front for public HTTPS.
+      - "127.0.0.1:${BACKEND_PORT:-4702}:${BACKEND_PORT:-4702}"
     volumes:
       # Firebase Admin service-account JSON (git-ignored on the host).
       - ./backend/secrets:/app/secrets:ro
@@ -55,7 +62,10 @@ services:
       BACKEND_WEBHOOK_URL: http://backend:${BACKEND_PORT:-4702}/api/channels/whatsapp/webhook
       WEBHOOK_SHARED_SECRET: ${WEBHOOK_SHARED_SECRET:-}
     ports:
-      - "${WHATSAPP_PORT:-4703}:${WHATSAPP_PORT:-4703}"
+      # Not meant to be public — the backend reaches this over the internal
+      # Docker network (http://whatsapp:PORT) via the /api/whatsapp/* proxy.
+      # Bound to localhost purely for local debugging (curl :4703/status).
+      - "127.0.0.1:${WHATSAPP_PORT:-4703}:${WHATSAPP_PORT:-4703}"
     volumes:
       # WhatsApp/Baileys session credentials persist here across restarts.
       - ./data/whatsapp_session:/app/session
@@ -83,7 +93,10 @@ services:
       # Set DISABLE_AUTH=true to run the console without forcing Clerk sign-in.
       DISABLE_AUTH: ${DISABLE_AUTH:-}
     ports:
-      - "${FRONTEND_PORT:-4701}:${FRONTEND_PORT:-4701}"
+      # Bound to localhost. Not needed at all if the frontend is deployed on
+      # Vercel instead — run `docker compose up -d postgres backend whatsapp`
+      # to skip starting this service.
+      - "127.0.0.1:${FRONTEND_PORT:-4701}:${FRONTEND_PORT:-4701}"
     depends_on:
       - backend
 
