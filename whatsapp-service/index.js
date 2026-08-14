@@ -41,8 +41,40 @@ let pairingCodeRequested = false; // guards against re-requesting on every qr ro
 let pairingLastError = null;
 let pairingConnectStartedAt = null;
 
+// Generation guard — prevents overlapping/concurrent connectToWhatsApp() calls
+// from ever creating two live sockets against the same session files at once
+// (which corrupts the session and causes WhatsApp to reject it outright).
+// Every connectToWhatsApp() call captures the generation counter at its start;
+// if a newer call has since started, the older one's continuation (after any
+// await, and inside every event handler it registers) bails out silently.
+let connectGeneration = 0;
+
+// Circuit breaker for a failing-before-ever-authenticating loop (e.g. corrupted
+// local session data WhatsApp keeps rejecting instantly). Counts consecutive
+// closes that happen without ever reaching a real `qr` or `open` event.
+let consecutiveAuthFailures = 0;
+const AUTH_FAILURE_CIRCUIT_THRESHOLD = 4;
+const AUTH_FAILURE_COOLDOWN_MS = 30000;
+
 if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
+}
+
+/**
+ * Remove everything INSIDE a directory without removing the directory itself.
+ * SESSION_DIR is a Docker volume mount point — attempting to rmdir the mount
+ * point itself fails with EBUSY ("resource busy or locked"), which silently
+ * broke session cleanup entirely (the catch swallowed the error and the
+ * corrupted session files were never actually cleared).
+ */
+function clearSessionContents(dir) {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        return;
+    }
+    for (const entry of fs.readdirSync(dir)) {
+        fs.rmSync(path.join(dir, entry), { recursive: true, force: true });
+    }
 }
 
 /** Recursively extract a text payload from Baileys' nested message shapes. */
@@ -94,16 +126,18 @@ async function forwardToBackend(payload) {
  * sends it as a fire-and-forget node (see Socket/socket.js: `sendNode`, not
  * `query`), so a resolved promise only proves *we* generated a code and wrote
  * it to the wire, never that WhatsApp actually received/accepted it. Retrying
- * (both immediately on failure, and again on Baileys' natural ~20s QR
- * rotation if the phone never confirms) is the only real mitigation.
+ * (both immediately on failure, and again on Baileys' natural QR rotation if
+ * the phone never confirms) is the only real mitigation.
  */
-async function requestPairingCodeWithRetry(phone, maxAttempts = 3) {
+async function requestPairingCodeWithRetry(phone, myGeneration, maxAttempts = 3) {
     const digits = String(phone).replace(/\D/g, '').replace(/^0+/, '');
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (myGeneration !== connectGeneration) return; // superseded — abandon
         try {
             if (!sock) throw new Error('socket not ready');
             logger.info(`Requesting pairing code for ${digits} (attempt ${attempt}/${maxAttempts})...`);
             const raw = await sock.requestPairingCode(digits);
+            if (myGeneration !== connectGeneration) return; // superseded mid-request
             const clean = String(raw).replace(/[^A-Za-z0-9]/g, '');
             currentPairingCode = clean.length === 8 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
             pairingLastError = null;
@@ -125,8 +159,12 @@ async function requestPairingCodeWithRetry(phone, maxAttempts = 3) {
 }
 
 async function connectToWhatsApp() {
+    const myGeneration = ++connectGeneration;
+    let reachedRealProgress = false; // set true on a genuine qr/open for this attempt
+
     try {
         const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+        if (myGeneration !== connectGeneration) return; // a newer call started meanwhile
         connectionStatus = 'connecting';
 
         // fetchLatestBaileysVersion() never throws — on network failure it
@@ -137,6 +175,7 @@ async function connectToWhatsApp() {
         // client version is a documented way for WhatsApp to reject a
         // connection outright).
         const { version, isLatest } = await fetchLatestBaileysVersion();
+        if (myGeneration !== connectGeneration) return;
         logger.info(`Using Baileys/WA version ${version.join('.')} (${isLatest ? 'fetched live' : 'library default — live fetch failed'})`);
 
         const wantsPairingCode = pairingPhone && !state.creds.registered;
@@ -144,7 +183,7 @@ async function connectToWhatsApp() {
         pairingLastError = null;
         if (wantsPairingCode) pairingConnectStartedAt = Date.now();
 
-        sock = makeWASocket({
+        const newSock = makeWASocket({
             version,
             auth: state,
             // printQRInTerminal is deprecated in recent Baileys — we render our
@@ -155,14 +194,18 @@ async function connectToWhatsApp() {
             browser: Browsers.ubuntu('Chrome'),
             logger: pino({ level: 'silent' }),
         });
+        sock = newSock;
 
-        sock.ev.on('creds.update', saveCreds);
+        newSock.ev.on('creds.update', saveCreds);
 
-        sock.ev.on('connection.update', (update) => {
+        newSock.ev.on('connection.update', (update) => {
+            if (myGeneration !== connectGeneration) return; // stale socket, ignore
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
-                if (pairingPhone && !sock.authState.creds.registered) {
+                reachedRealProgress = true;
+                consecutiveAuthFailures = 0;
+                if (pairingPhone && !newSock.authState.creds.registered) {
                     // This `qr` event is Baileys' actual readiness signal — the
                     // connection has completed its handshake and is ready to
                     // register either a QR scan or a pairing code. Requesting
@@ -172,7 +215,7 @@ async function connectToWhatsApp() {
                     // WhatsApp doesn't yet trust, and it's silently dropped.
                     if (!pairingCodeRequested) {
                         pairingCodeRequested = true;
-                        requestPairingCodeWithRetry(pairingPhone).catch(() => {
+                        requestPairingCodeWithRetry(pairingPhone, myGeneration).catch(() => {
                             /* logged inside; pairingCodeRequested was reset so
                                the next qr rotation retries automatically */
                         });
@@ -185,6 +228,8 @@ async function connectToWhatsApp() {
             }
 
             if (connection === 'open') {
+                reachedRealProgress = true;
+                consecutiveAuthFailures = 0;
                 connectionStatus = 'connected';
                 currentQr = null;
                 pairingPhone = null;
@@ -204,9 +249,32 @@ async function connectToWhatsApp() {
                 connectionStatus = 'disconnected';
                 logger.warn(`Connection closed. statusCode=${statusCode} reconnect=${shouldReconnect}`);
 
+                if (!reachedRealProgress) {
+                    // Closed before ever getting a qr/open for THIS attempt —
+                    // that's a sign of a fundamentally broken session, not a
+                    // transient network hiccup. Count it toward the breaker.
+                    consecutiveAuthFailures++;
+                } else {
+                    consecutiveAuthFailures = 0;
+                }
+
+                if (consecutiveAuthFailures >= AUTH_FAILURE_CIRCUIT_THRESHOLD) {
+                    logger.error(
+                        `${consecutiveAuthFailures} consecutive connections failed before authenticating — ` +
+                        `likely corrupted local session data. Wiping session and cooling down ` +
+                        `${AUTH_FAILURE_COOLDOWN_MS / 1000}s before retrying.`
+                    );
+                    clearSessionContents(SESSION_DIR);
+                    consecutiveAuthFailures = 0;
+                    retryCount = 0;
+                    pairingCodeRequested = false;
+                    setTimeout(connectToWhatsApp, AUTH_FAILURE_COOLDOWN_MS);
+                    return;
+                }
+
                 if (shouldReconnect) {
-                    if (statusCode === 408 || statusCode === DisconnectReason.timedOut || !sock?.user) {
-                        retryCount = 0; // fresh QR without penalty
+                    if (statusCode === 408 || statusCode === DisconnectReason.timedOut) {
+                        retryCount = 0; // QR/pairing code literally expired — fresh one is normal
                     } else {
                         retryCount++;
                     }
@@ -215,19 +283,15 @@ async function connectToWhatsApp() {
                     setTimeout(connectToWhatsApp, delay);
                 } else {
                     logger.error('Logged out. Clearing session and restarting scanner...');
-                    try {
-                        fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-                        fs.mkdirSync(SESSION_DIR, { recursive: true });
-                    } catch (err) {
-                        logger.error(`Error clearing session dir: ${err.message}`);
-                    }
+                    clearSessionContents(SESSION_DIR);
                     retryCount = 0;
                     setTimeout(connectToWhatsApp, 1000);
                 }
             }
         });
 
-        sock.ev.on('messages.upsert', async (m) => {
+        newSock.ev.on('messages.upsert', async (m) => {
+            if (myGeneration !== connectGeneration) return;
             if (m.type !== 'notify') return;
 
             for (const msg of m.messages) {
@@ -268,6 +332,7 @@ async function connectToWhatsApp() {
             }
         });
     } catch (err) {
+        if (myGeneration !== connectGeneration) return;
         logger.error(`Fatal socket error: ${err.message}`);
         setTimeout(connectToWhatsApp, 10000);
     }
@@ -321,12 +386,15 @@ function startFresh({ clearSession, phone }) {
     pairingPhone = phone || null;
     connectionStatus = 'connecting';
     retryCount = 0;
+    consecutiveAuthFailures = 0;
+    // Bump the generation so any in-flight connectToWhatsApp()/event handlers
+    // from the previous attempt recognize themselves as superseded and stop.
+    connectGeneration++;
     if (sock) { try { sock.ws.close(); } catch (e) {} sock = null; }
-    if (clearSession && fs.existsSync(SESSION_DIR)) {
+    if (clearSession) {
         logger.warn('Clearing session directory for fresh link.');
         try {
-            fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-            fs.mkdirSync(SESSION_DIR, { recursive: true });
+            clearSessionContents(SESSION_DIR);
         } catch (err) {
             logger.error(`Error clearing session dir: ${err.message}`);
         }
