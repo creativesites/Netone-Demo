@@ -21,9 +21,14 @@ same way — this guide covers each and how they wire together.
                          └─ Bitrix24 / DeepSeek (HTTPS out)
 ```
 
-> **Key rule:** the browser loads the frontend over HTTPS, so the backend it
-> talks to **must also be HTTPS** (a browser on an `https://` page cannot call an
-> `http://` API — mixed content is blocked). Give the backend a TLS endpoint.
+> **Key rule:** the frontend and backend must be on the **same protocol**. If
+> the frontend is served over HTTPS (e.g. Vercel), the backend must be HTTPS
+> too — a browser on an `https://` page cannot call an `http://` API (mixed
+> content is blocked). The simplest way to dodge this entirely on a shared
+> server that doesn't have a spare domain/TLS setup: serve **both** frontend
+> and backend directly over plain HTTP on their own ports (no reverse proxy,
+> no cert) — see §0a below. Add HTTPS later only if you move the frontend to
+> Vercel.
 
 ---
 
@@ -53,6 +58,40 @@ collides on your server:
 (Postgres's *internal* container port is always the standard `5432` —
 `POSTGRES_PORT` only changes the host-side mapping used for direct `psql`
 access from outside Docker.)
+
+### 0a. Direct-port deployment (no domain, no reverse proxy)
+
+If the box doesn't have a spare domain/TLS setup (e.g. another app already
+owns port 80/443 on this host), skip Caddy entirely and hit the services by
+`http://<server-ip>:<port>` directly:
+
+- `backend` and `frontend` publish straight on the host (plain HTTP).
+- `postgres` and `whatsapp` stay bound to `127.0.0.1` — nothing needs to reach
+  Postgres from outside the box, and the backend reaches `whatsapp` over the
+  internal Docker network regardless of any host port mapping.
+
+```bash
+docker compose up -d --build postgres backend whatsapp frontend
+```
+
+Dashboard: `http://<server-ip>:4701` · Backend: `http://<server-ip>:4702`.
+Set `NEXT_PUBLIC_BACKEND_URL=http://<server-ip>:4702` in `.env` before the
+`frontend` build (it's baked in at build time).
+
+Only open the ports you're actually serving in the firewall — typically just
+`FRONTEND_PORT` and `BACKEND_PORT`:
+```bash
+sudo ufw allow 4701/tcp
+sudo ufw allow 4702/tcp
+```
+Leave `WHATSAPP_PORT`/`POSTGRES_PORT` closed — they're bound to localhost so
+opening the firewall for them wouldn't expose them anyway, but no need to try.
+
+This only works end-to-end if the dashboard is opened at the plain-HTTP
+`http://<server-ip>:4701` URL. If the frontend instead ends up on an HTTPS
+host (Vercel, or this same box behind Caddy later), point it at an HTTPS
+backend — see §3 for adding a reverse proxy without disrupting anything else
+already running on the box.
 
 ---
 

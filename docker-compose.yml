@@ -5,10 +5,15 @@
 # WHATSAPP_PORT, FRONTEND_PORT) so this stack won't collide with other demos
 # sharing the same host. Override any of them in .env if needed.
 #
-# Every port below is bound to 127.0.0.1 only — nothing is reachable from the
-# public internet directly. Put a reverse proxy (Caddy/nginx) on the host in
-# front of the backend (and frontend, if served from here) for public HTTPS.
-# See DEPLOYMENT.md for the exact steps, including a bare-IP setup.
+# backend + frontend publish directly on the host (plain HTTP, no reverse
+# proxy) — deliberate for a shared box where a domain/TLS setup isn't wanted
+# right now. postgres + whatsapp stay bound to 127.0.0.1: nothing needs to
+# reach Postgres from outside the box, and the backend reaches whatsapp over
+# the internal Docker network (http://whatsapp:PORT), never the host port.
+#
+# Caveat: if the frontend ever moves behind HTTPS (e.g. Vercel) while the
+# backend stays plain HTTP, browsers will block the calls as mixed content.
+# Put Caddy/nginx in front of the backend at that point — see DEPLOYMENT.md.
 services:
   postgres:
     image: postgres:16-alpine
@@ -43,8 +48,8 @@ services:
       BACKEND_PORT: ${BACKEND_PORT:-4702}
       FIREBASE_ADMIN_CREDENTIALS: ./secrets/firebase-admin.json
     ports:
-      # Bound to localhost — put Caddy/nginx in front for public HTTPS.
-      - "127.0.0.1:${BACKEND_PORT:-4702}:${BACKEND_PORT:-4702}"
+      # Published directly — reachable at http://<server-ip>:${BACKEND_PORT}.
+      - "${BACKEND_PORT:-4702}:${BACKEND_PORT:-4702}"
     volumes:
       # Firebase Admin service-account JSON (git-ignored on the host).
       - ./backend/secrets:/app/secrets:ro
@@ -93,10 +98,10 @@ services:
       # Set DISABLE_AUTH=true to run the console without forcing Clerk sign-in.
       DISABLE_AUTH: ${DISABLE_AUTH:-}
     ports:
-      # Bound to localhost. Not needed at all if the frontend is deployed on
-      # Vercel instead — run `docker compose up -d postgres backend whatsapp`
-      # to skip starting this service.
-      - "127.0.0.1:${FRONTEND_PORT:-4701}:${FRONTEND_PORT:-4701}"
+      # Published directly — reachable at http://<server-ip>:${FRONTEND_PORT}.
+      # Not needed at all if the frontend is deployed on Vercel instead — run
+      # `docker compose up -d postgres backend whatsapp` to skip this service.
+      - "${FRONTEND_PORT:-4701}:${FRONTEND_PORT:-4701}"
     depends_on:
       - backend
 
