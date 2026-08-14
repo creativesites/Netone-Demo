@@ -9,6 +9,8 @@ interface WaStatus {
   status: 'connected' | 'connecting' | 'disconnected' | string;
   hasQr?: boolean;
   pairingCode?: string | null;
+  pairingError?: string | null;
+  pairingElapsedMs?: number | null;
   method?: 'qr' | 'code';
   user?: string | null;
 }
@@ -105,6 +107,8 @@ function ConnectModal({
     return () => clearInterval(iv);
   }, [tab, connected]);
 
+  const [requestedPhone, setRequestedPhone] = useState('');
+
   async function requestCode() {
     const digits = phone.replace(/\D/g, '');
     if (digits.length < 7) return;
@@ -115,10 +119,15 @@ function ConnectModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: digits }),
       });
+      setRequestedPhone(digits);
       onChanged();
     } finally {
       setBusy(false);
     }
+  }
+
+  function tryAgain() {
+    setRequestedPhone('');
   }
 
   function copyCode() {
@@ -219,6 +228,35 @@ function ConnectModal({
                       <li>2. Tap <span className="font-medium text-ink-900">Link with phone number instead</span></li>
                       <li>3. Enter the code above</li>
                     </ol>
+                    <div className="flex items-center gap-1.5 text-[11px] text-ink-400">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+                      Waiting for confirmation on your phone
+                      {typeof status.pairingElapsedMs === 'number' && status.pairingElapsedMs > 0
+                        ? ` · ${Math.round(status.pairingElapsedMs / 1000)}s`
+                        : ''}
+                    </div>
+                    {status.pairingError && (
+                      <div className="w-full rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+                        Code request failed: {status.pairingError}. Retrying automatically — or{' '}
+                        <button onClick={tryAgain} className="font-semibold underline">
+                          start over
+                        </button>
+                        .
+                      </div>
+                    )}
+                  </div>
+                ) : requestedPhone ? (
+                  <div className="flex flex-col items-center gap-3 py-4 text-center">
+                    <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                    <div className="text-[13px] text-ink-500">Generating pairing code…</div>
+                    {status.pairingError && (
+                      <div className="w-full rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+                        {status.pairingError} —{' '}
+                        <button onClick={tryAgain} className="font-semibold underline">
+                          try again
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>

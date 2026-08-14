@@ -12,7 +12,7 @@
  */
 const express = require('express');
 const makeWASocket = require('@whiskeysockets/baileys').default;
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const axios = require('axios');
 const path = require('path');
@@ -37,6 +37,9 @@ let lastConnectedAt = null;
 // Baileys for an 8-char code instead of showing a QR.
 let pairingPhone = null;
 let currentPairingCode = null;
+let pairingCodeRequested = false; // guards against re-requesting on every qr rotation
+let pairingLastError = null;
+let pairingConnectStartedAt = null;
 
 if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
@@ -74,21 +77,48 @@ async function forwardToBackend(payload) {
     await axios.post(BACKEND_WEBHOOK_URL, payload, { headers, timeout: 15000 });
 }
 
-/** Ask Baileys for a link-with-phone-number pairing code (formatted XXXX-XXXX). */
+/**
+ * Ask Baileys for a link-with-phone-number pairing code (formatted XXXX-XXXX).
+ *
+ * IMPORTANT — timing: `requestPairingCode` must only be called once the socket
+ * has reached the point where Baileys would otherwise show a QR code (i.e.
+ * from inside the `qr` event of `connection.update`). Calling it on an
+ * arbitrary timer is a real bug: if fired before the connection has finished
+ * its handshake with WhatsApp's servers, the registration frame is written to
+ * a socket WhatsApp doesn't yet fully trust and gets silently dropped — no
+ * error, no phone notification, nothing. This matches Baileys' own official
+ * reference implementation (Example/example.ts), which requests the pairing
+ * code from inside that same `if (qr)` branch.
+ *
+ * `requestPairingCode` also has no server acknowledgement to wait on — Baileys
+ * sends it as a fire-and-forget node (see Socket/socket.js: `sendNode`, not
+ * `query`), so a resolved promise only proves *we* generated a code and wrote
+ * it to the wire, never that WhatsApp actually received/accepted it. Retrying
+ * (both immediately on failure, and again on Baileys' natural ~20s QR
+ * rotation if the phone never confirms) is the only real mitigation.
+ */
 async function requestPairingCodeWithRetry(phone, maxAttempts = 3) {
     const digits = String(phone).replace(/\D/g, '').replace(/^0+/, '');
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             if (!sock) throw new Error('socket not ready');
+            logger.info(`Requesting pairing code for ${digits} (attempt ${attempt}/${maxAttempts})...`);
             const raw = await sock.requestPairingCode(digits);
             const clean = String(raw).replace(/[^A-Za-z0-9]/g, '');
             currentPairingCode = clean.length === 8 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+            pairingLastError = null;
             connectionStatus = 'connecting';
-            logger.info(`Pairing code generated for ${digits}: ${currentPairingCode}`);
+            logger.info(`Pairing code generated for ${digits}: ${currentPairingCode}. Waiting for phone confirmation...`);
             return currentPairingCode;
         } catch (err) {
-            logger.error(`requestPairingCode failed (attempt ${attempt}): ${err.message}`);
-            if (attempt === maxAttempts) throw err;
+            logger.error(`requestPairingCode failed (attempt ${attempt}/${maxAttempts}): ${err.message}`);
+            pairingLastError = err.message;
+            if (attempt === maxAttempts) {
+                // Let the next `qr` rotation (Baileys re-emits it periodically
+                // while unpaired) trigger a fresh attempt automatically.
+                pairingCodeRequested = false;
+                throw err;
+            }
             await new Promise((r) => setTimeout(r, 2000 * attempt));
         }
     }
@@ -99,39 +129,59 @@ async function connectToWhatsApp() {
         const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
         connectionStatus = 'connecting';
 
-        let version = [2, 3000, 1015920080];
-        try {
-            const result = await fetchLatestBaileysVersion();
-            version = result.version;
-            logger.info(`Using Baileys version ${version.join('.')}`);
-        } catch (err) {
-            logger.warn(`Baileys version fetch failed, using fallback [${version.join('.')}]: ${err.message}`);
-        }
+        // fetchLatestBaileysVersion() never throws — on network failure it
+        // already falls back internally to the library's own current bundled
+        // default (kept up to date by Baileys' maintainers on every release),
+        // which is strictly more reliable than any version we'd hardcode here
+        // ourselves (that value silently goes stale over time and a mismatched
+        // client version is a documented way for WhatsApp to reject a
+        // connection outright).
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        logger.info(`Using Baileys/WA version ${version.join('.')} (${isLatest ? 'fetched live' : 'library default — live fetch failed'})`);
+
+        const wantsPairingCode = pairingPhone && !state.creds.registered;
+        pairingCodeRequested = false;
+        pairingLastError = null;
+        if (wantsPairingCode) pairingConnectStartedAt = Date.now();
 
         sock = makeWASocket({
             version,
             auth: state,
-            printQRInTerminal: false,
-            browser: ['NetOne Lead Automation', 'Chrome', '120.0.0'],
+            // printQRInTerminal is deprecated in recent Baileys — we render our
+            // own QR from the `qr` event instead (see /qr and the `qr` handler).
+            // A well-known, widely-used browser tuple. Using Browsers.ubuntu(...)
+            // instead of a fully custom name removes any risk of WhatsApp's
+            // platform/device-display validation rejecting a nonstandard tuple.
+            browser: Browsers.ubuntu('Chrome'),
             logger: pino({ level: 'silent' }),
         });
 
         sock.ev.on('creds.update', saveCreds);
 
-        // Pairing-code path: if a phone number was supplied and this session is
-        // not yet registered, request an 8-char link code after the WS handshake.
-        if (pairingPhone && !state.creds.registered) {
-            setTimeout(() => requestPairingCodeWithRetry(pairingPhone), 3000);
-        }
-
         sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect, qr } = update;
 
-            // Only surface a QR when we're not in pairing-code mode.
-            if (qr && !pairingPhone) {
-                currentQr = qr;
-                connectionStatus = 'connecting';
-                logger.info('New QR code received — scan to link device.');
+            if (qr) {
+                if (pairingPhone && !sock.authState.creds.registered) {
+                    // This `qr` event is Baileys' actual readiness signal — the
+                    // connection has completed its handshake and is ready to
+                    // register either a QR scan or a pairing code. Requesting
+                    // the code here (not on a blind timer) is the fix for
+                    // "pairing code generated but phone never notified": firing
+                    // too early sends the registration frame on a socket
+                    // WhatsApp doesn't yet trust, and it's silently dropped.
+                    if (!pairingCodeRequested) {
+                        pairingCodeRequested = true;
+                        requestPairingCodeWithRetry(pairingPhone).catch(() => {
+                            /* logged inside; pairingCodeRequested was reset so
+                               the next qr rotation retries automatically */
+                        });
+                    }
+                } else if (!pairingPhone) {
+                    currentQr = qr;
+                    connectionStatus = 'connecting';
+                    logger.info('New QR code received — scan to link device.');
+                }
             }
 
             if (connection === 'open') {
@@ -139,6 +189,9 @@ async function connectToWhatsApp() {
                 currentQr = null;
                 pairingPhone = null;
                 currentPairingCode = null;
+                pairingCodeRequested = false;
+                pairingLastError = null;
+                pairingConnectStartedAt = null;
                 retryCount = 0;
                 lastConnectedAt = new Date().toISOString();
                 logger.info('WhatsApp connection open.');
@@ -230,6 +283,8 @@ app.get('/status', (req, res) => {
         status: connectionStatus,
         hasQr: !!currentQr,
         pairingCode: currentPairingCode,
+        pairingError: pairingLastError,
+        pairingElapsedMs: pairingConnectStartedAt ? Date.now() - pairingConnectStartedAt : null,
         method: pairingPhone ? 'code' : 'qr',
         lastConnectedAt,
         user: sock?.user?.id || null,
@@ -260,6 +315,9 @@ app.post('/restart', (req, res) => {
 function startFresh({ clearSession, phone }) {
     currentQr = null;
     currentPairingCode = null;
+    pairingCodeRequested = false;
+    pairingLastError = null;
+    pairingConnectStartedAt = null;
     pairingPhone = phone || null;
     connectionStatus = 'connecting';
     retryCount = 0;
