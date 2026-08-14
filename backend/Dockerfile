@@ -14,5 +14,6 @@ RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
 # schema.sql is read at runtime by the migration step.
 COPY src/db/schema.sql ./dist/db/schema.sql
-EXPOSE 4000
+EXPOSE 4702
+ENV BACKEND_PORT=4702
 CMD ["node", "dist/server.js"]

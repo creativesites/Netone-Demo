@@ -1,5 +1,9 @@
 # NetOne Lead Automation — full demo stack.
 # Usage: cp .env.example .env && fill values, then `docker compose up --build`.
+#
+# All ports use the 47xx range by default (POSTGRES_PORT, BACKEND_PORT,
+# WHATSAPP_PORT, FRONTEND_PORT) so this stack won't collide with other demos
+# sharing the same host. Override any of them in .env if needed.
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,7 +14,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netone_demo_pw}
       POSTGRES_DB: ${POSTGRES_DB:-netone_leads}
     ports:
-      - "5432:5432"
+      # Host-side port only — the internal container port stays the Postgres
+      # default (5432); other services reach it over the internal network.
+      - "${POSTGRES_PORT:-4705}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -27,11 +33,11 @@ services:
     environment:
       # Service-networking overrides (container hostnames, not localhost).
       DATABASE_URL: postgresql://${POSTGRES_USER:-netone}:${POSTGRES_PASSWORD:-netone_demo_pw}@postgres:5432/${POSTGRES_DB:-netone_leads}
-      WHATSAPP_SERVICE_URL: http://whatsapp:3000
-      BACKEND_PORT: 4000
+      WHATSAPP_SERVICE_URL: http://whatsapp:${WHATSAPP_PORT:-4703}
+      BACKEND_PORT: ${BACKEND_PORT:-4702}
       FIREBASE_ADMIN_CREDENTIALS: ./secrets/firebase-admin.json
     ports:
-      - "4000:4000"
+      - "${BACKEND_PORT:-4702}:${BACKEND_PORT:-4702}"
     volumes:
       # Firebase Admin service-account JSON (git-ignored on the host).
       - ./backend/secrets:/app/secrets:ro
@@ -44,12 +50,12 @@ services:
     container_name: netone-whatsapp
     restart: unless-stopped
     environment:
-      PORT: 3000
+      PORT: ${WHATSAPP_PORT:-4703}
       SESSION_DIR: /app/session
-      BACKEND_WEBHOOK_URL: http://backend:4000/api/channels/whatsapp/webhook
+      BACKEND_WEBHOOK_URL: http://backend:${BACKEND_PORT:-4702}/api/channels/whatsapp/webhook
       WEBHOOK_SHARED_SECRET: ${WEBHOOK_SHARED_SECRET:-}
     ports:
-      - "3000:3000"
+      - "${WHATSAPP_PORT:-4703}:${WHATSAPP_PORT:-4703}"
     volumes:
       # WhatsApp/Baileys session credentials persist here across restarts.
       - ./data/whatsapp_session:/app/session
@@ -61,7 +67,7 @@ services:
       context: ./frontend
       args:
         # Baked into the client bundle at build time.
-        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:4000}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:4702}
         NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
         NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
         NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
@@ -72,11 +78,12 @@ services:
     container_name: netone-frontend
     restart: unless-stopped
     environment:
+      PORT: ${FRONTEND_PORT:-4701}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
       # Set DISABLE_AUTH=true to run the console without forcing Clerk sign-in.
       DISABLE_AUTH: ${DISABLE_AUTH:-}
     ports:
-      - "3001:3001"
+      - "${FRONTEND_PORT:-4701}:${FRONTEND_PORT:-4701}"
     depends_on:
       - backend
 

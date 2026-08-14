@@ -19,7 +19,7 @@ import {
 } from 'firebase/firestore';
 import { getDb, firebaseEnabled } from './firebase';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4702';
 
 async function restGet<T>(path: string): Promise<T | null> {
   try {

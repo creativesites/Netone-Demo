@@ -27,6 +27,35 @@ same way — this guide covers each and how they wire together.
 
 ---
 
+## 0. Port scheme (shared-host friendly)
+
+Every port defaults to the **47xx range** — uncommon enough to avoid clashing
+with other demos/services on the same box:
+
+| Service | Env var | Default |
+|---|---|---|
+| Frontend | `FRONTEND_PORT` | `4701` |
+| Backend | `BACKEND_PORT` | `4702` |
+| WhatsApp bridge | `WHATSAPP_PORT` | `4703` |
+| Postgres (host-exposed) | `POSTGRES_PORT` | `4705` |
+
+All four are read from `.env` by `docker-compose.yml`, so changing a value
+there is enough for the Docker path — no code edits needed. If a port still
+collides on your server:
+
+1. Pick a free port (`ss -ltn` or `lsof -i` to check what's taken).
+2. Set the corresponding `*_PORT` var in `.env`.
+3. Update the two values that reference another service's port directly:
+   `BACKEND_WEBHOOK_URL` (whatsapp → backend) and `NEXT_PUBLIC_BACKEND_URL` /
+   `WHATSAPP_SERVICE_URL` if you're not using the Compose defaults above.
+4. `docker compose up -d --build`.
+
+(Postgres's *internal* container port is always the standard `5432` —
+`POSTGRES_PORT` only changes the host-side mapping used for direct `psql`
+access from outside Docker.)
+
+---
+
 ## 1. Environment variables (complete reference)
 
 Copy `.env.example` → `.env` and fill these. Secrets live only in `.env`
@@ -36,7 +65,7 @@ Copy `.env.example` → `.env` and fill these. Secrets live only in `.env`
 | Variable | Example / notes |
 |---|---|
 | `DATABASE_URL` | `postgresql://user:pass@host:5432/netone_leads` |
-| `BACKEND_PORT` | `4000` |
+| `BACKEND_PORT` | `4702` |
 | `WEBHOOK_SHARED_SECRET` | random string; the whatsapp service sends it |
 | `DEEPSEEK_API_KEY` | your DeepSeek key |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` |
@@ -47,21 +76,21 @@ Copy `.env.example` → `.env` and fill these. Secrets live only in `.env`
 | `BITRIX24_ASSIGNED_BY_ID` | Bitrix user id for lead assignment |
 | `FIREBASE_PROJECT_ID` | `crm-integrations-ca0ce` |
 | `FIREBASE_ADMIN_CREDENTIALS` | path to service-account JSON (mounted/secret file) |
-| `WHATSAPP_SERVICE_URL` | `http://whatsapp:3000` (internal) |
+| `WHATSAPP_SERVICE_URL` | `http://whatsapp:4703` (internal) |
 | `AUTO_REPLY_DEFAULT` | `true` |
 
 ### WhatsApp service
 | Variable | Notes |
 |---|---|
-| `PORT` | `3000` |
+| `PORT` | `4703` |
 | `SESSION_DIR` | `/app/session` (mounted volume — **persist this**) |
-| `BACKEND_WEBHOOK_URL` | `http://backend:4000/api/channels/whatsapp/webhook` |
+| `BACKEND_WEBHOOK_URL` | `http://backend:4702/api/channels/whatsapp/webhook` |
 | `WEBHOOK_SHARED_SECRET` | must match the backend's |
 
 ### Frontend (Vercel)
 | Variable | Notes |
 |---|---|
-| `NEXT_PUBLIC_BACKEND_URL` | **public HTTPS URL of the backend**, e.g. `https://api.yourdomain.com` |
+| `NEXT_PUBLIC_BACKEND_URL` | **public HTTPS URL of the backend**, e.g. `https://api.yourdomain.com` (locally: `http://localhost:4702`) |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` … `_APP_ID` | the 6 public Firebase web-config values |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
 | `CLERK_SECRET_KEY` | Clerk secret key (server-only) |
@@ -120,37 +149,38 @@ docker compose up -d --build               # starts postgres, backend, whatsapp,
 docker compose logs -f whatsapp            # watch for the QR / connection
 ```
 
-Then put **HTTPS in front of the backend** (port 4000) so the browser can reach
-it. Easiest is Caddy (auto-TLS):
+Then put **HTTPS in front of the backend** (port `4702` by default) so the
+browser can reach it. Easiest is Caddy (auto-TLS):
 
 ```
 # /etc/caddy/Caddyfile
 api.yourdomain.com {
-    reverse_proxy localhost:4000
+    reverse_proxy localhost:4702
 }
 qr.yourdomain.com {           # optional, only needed while linking WhatsApp
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:4703
 }
 ```
 
 Set the frontend's `NEXT_PUBLIC_BACKEND_URL=https://api.yourdomain.com` on Vercel.
 
 > You can also serve the frontend from this same Compose stack (it's included on
-> port 3001) instead of Vercel — but Vercel is simpler for the Next app. If you
-> use Vercel, you can remove the `frontend` service from `docker-compose.yml`.
+> port `4701` by default) instead of Vercel — but Vercel is simpler for the Next
+> app. If you use Vercel, you can remove the `frontend` service from
+> `docker-compose.yml`.
 
 ### Option B — Managed platform (Railway / Render / Fly.io)
 
 Deploy **backend** and **whatsapp** as two services from their Dockerfiles, plus
 a managed Postgres. They provide HTTPS automatically.
 
-- **backend** → Dockerfile `backend/Dockerfile`, expose 4000, set all backend env
-  vars, attach a secret file for `backend/secrets/firebase-admin.json` (or use
-  `GOOGLE_APPLICATION_CREDENTIALS`). Point `WHATSAPP_SERVICE_URL` at the
+- **backend** → Dockerfile `backend/Dockerfile`, expose `4702`, set all backend
+  env vars, attach a secret file for `backend/secrets/firebase-admin.json` (or
+  use `GOOGLE_APPLICATION_CREDENTIALS`). Point `WHATSAPP_SERVICE_URL` at the
   whatsapp service's internal URL.
-- **whatsapp** → Dockerfile `whatsapp-service/Dockerfile`, expose 3000, **attach a
-  persistent disk mounted at `/app/session`**, set `BACKEND_WEBHOOK_URL` to the
-  backend's internal URL and the shared secret.
+- **whatsapp** → Dockerfile `whatsapp-service/Dockerfile`, expose `4703`,
+  **attach a persistent disk mounted at `/app/session`**, set
+  `BACKEND_WEBHOOK_URL` to the backend's internal URL and the shared secret.
 - **postgres** → the platform's managed Postgres; set `DATABASE_URL`.
 
 ---

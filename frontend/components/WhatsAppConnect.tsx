@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, QrCode, Smartphone, Copy, Check, RefreshCw } from 'lucide-react';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4702';
 
 interface WaStatus {
   status: 'connected' | 'connecting' | 'disconnected' | string;

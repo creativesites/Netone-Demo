@@ -91,18 +91,21 @@ docker compose up --build
 ```
 
 Then:
-1. Open the WhatsApp linking screen: <http://localhost:3000/qr> — scan with the
-   demo phone (WhatsApp → Linked devices → Link a device).
-2. Open the dashboard: <http://localhost:3001> — WhatsApp shows **Connected**.
-3. From another phone, send the demo number a message like
+1. Open the dashboard: <http://localhost:4701> — click **WhatsApp · Connect**
+   in the header and either scan the QR or link with a phone-number code.
+2. From another phone, send the demo number a message like
    *"Hi, I'm interested in getting a NetOne laptop on financing."*
-4. Watch the dashboard react live and the lead appear in Bitrix24.
+3. Watch the dashboard react live and the lead appear in Bitrix24.
+
+All ports default to the 47xx range (frontend `4701`, backend `4702`,
+whatsapp `4703`, postgres `4705`) so the stack won't collide with other demos
+on the same host — override any of them in `.env` if needed.
 
 ### Local development (without Docker)
 ```bash
 # Postgres must be running and DATABASE_URL set (see .env).
-cd backend && npm install && npm run dev      # http://localhost:4000
-cd frontend && npm install && npm run dev     # http://localhost:3001
+cd backend && npm install && npm run dev      # http://localhost:4702
+cd frontend && npm install && npm run dev     # http://localhost:4701
 cd whatsapp-service && npm install && npm start
 ```
 

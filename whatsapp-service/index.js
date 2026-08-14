@@ -23,8 +23,8 @@ const logger = pino({ level: 'info' });
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
-const BACKEND_WEBHOOK_URL = process.env.BACKEND_WEBHOOK_URL || 'http://backend:4000/api/channels/whatsapp/webhook';
+const PORT = process.env.PORT || 4703;
+const BACKEND_WEBHOOK_URL = process.env.BACKEND_WEBHOOK_URL || 'http://backend:4702/api/channels/whatsapp/webhook';
 const WEBHOOK_SHARED_SECRET = process.env.WEBHOOK_SHARED_SECRET || '';
 const SESSION_DIR = process.env.SESSION_DIR || path.join(__dirname, 'session');
 

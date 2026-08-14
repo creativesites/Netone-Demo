@@ -15,11 +15,13 @@ function req(name: string, fallback?: string): string {
   return v;
 }
 
+// Unique high port range (47xx) so this demo doesn't collide with other
+// services/demos sharing the same host. Override any of these via .env.
 export const config = {
-  port: Number(process.env.BACKEND_PORT ?? 4000),
+  port: Number(process.env.BACKEND_PORT ?? 4702),
   databaseUrl: req(
     'DATABASE_URL',
-    'postgresql://netone:netone_demo_pw@localhost:5432/netone_leads'
+    `postgresql://netone:netone_demo_pw@localhost:${process.env.POSTGRES_PORT ?? 4705}/netone_leads`
   ),
   webhookSecret: process.env.WEBHOOK_SHARED_SECRET ?? '',
 
@@ -47,7 +49,7 @@ export const config = {
     credentialsPath: process.env.FIREBASE_ADMIN_CREDENTIALS ?? './secrets/firebase-admin.json',
   },
 
-  whatsappServiceUrl: process.env.WHATSAPP_SERVICE_URL ?? 'http://whatsapp:3000',
+  whatsappServiceUrl: process.env.WHATSAPP_SERVICE_URL ?? 'http://whatsapp:4703',
 
   // Autonomous auto-reply default (can be toggled at runtime via settings).
   autoReplyDefault: (process.env.AUTO_REPLY_DEFAULT ?? 'true') === 'true',
