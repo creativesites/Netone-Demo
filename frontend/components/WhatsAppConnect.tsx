@@ -211,15 +211,15 @@ function ConnectModal({
             </div>
 
             {tab === 'qr' ? (
-              <div className="flex flex-col items-center gap-3 px-6 py-6">
-                <div className="rounded-2xl border border-line bg-white p-3">
+              <div className="flex flex-col items-center gap-3 px-4 py-6 sm:px-6">
+                <div className="rounded-2xl border border-line bg-white p-2.5 sm:p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={`${BACKEND}/api/whatsapp/qr?t=${qrBust}`}
                     alt="WhatsApp QR"
                     width={240}
                     height={240}
-                    className="h-60 w-60"
+                    className="h-48 w-48 sm:h-60 sm:w-60"
                   />
                 </div>
                 <ol className="w-full space-y-1 text-[13px] text-ink-500">
@@ -235,7 +235,7 @@ function ConnectModal({
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-3 px-6 py-6">
+              <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
                 {status.pairingCode ? (
                   <div className="flex flex-col items-center gap-3">
                     <div className="text-[13px] text-ink-500">Enter this code on your phone</div>

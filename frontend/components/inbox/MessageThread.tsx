@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Send, Bot, AlertTriangle } from 'lucide-react';
+import { Send, Bot, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { ChatMessage, Conversation } from '@/lib/types';
 
 function fmt(iso: string) {
@@ -16,10 +16,12 @@ export function MessageThread({
   conversation,
   messages,
   onSend,
+  onBack,
 }: {
   conversation: Conversation | null;
   messages: ChatMessage[];
   onSend: (text: string) => Promise<boolean>;
+  onBack?: () => void;
 }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -59,12 +61,23 @@ export function MessageThread({
   return (
     <div className="flex min-h-0 flex-col bg-surface-muted">
       <div className="flex items-center justify-between border-b border-line bg-white px-4 py-3">
-        <div>
-          <div className="text-sm font-semibold text-ink-900">{conversation.contact_name ?? conversation.phone}</div>
-          <div className="text-[11px] text-ink-500">{conversation.phone} · WhatsApp</div>
+        <div className="flex min-w-0 items-center gap-1">
+          {onBack && (
+            <button
+              onClick={onBack}
+              aria-label="Back to conversations"
+              className="-ml-1.5 mr-1 shrink-0 rounded-full p-1.5 text-ink-500 hover:bg-surface-muted md:hidden"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-ink-900">{conversation.contact_name ?? conversation.phone}</div>
+            <div className="text-[11px] text-ink-500">{conversation.phone} · WhatsApp</div>
+          </div>
         </div>
         {conversation.is_lead && (
-          <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">LEAD · {conversation.intent}</span>
+          <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">LEAD · {conversation.intent}</span>
         )}
       </div>
 

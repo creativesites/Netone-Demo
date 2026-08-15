@@ -150,26 +150,30 @@ export default function QualificationRulesPage() {
             const weight = rules.employmentWeights[cat.value] ?? 0;
             const tier = riskTierFor(weight);
             return (
-              <div key={cat.value} className="flex items-center gap-3 rounded-xl border border-line bg-surface-muted px-3 py-2.5">
-                <span className="flex-1 text-sm text-ink-800">{cat.label}</span>
-                <span className={`w-24 text-right text-[11px] font-semibold ${tier.cls}`}>{tier.label}</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={weight}
-                  onChange={(e) => updateEmploymentWeight(cat.value, Number(e.target.value))}
-                  className="w-28 accent-brand-500"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={weight}
-                  onChange={(e) => updateEmploymentWeight(cat.value, Number(e.target.value) || 0)}
-                  className="w-14 rounded-lg border border-line bg-white px-2 py-1 text-right text-sm text-ink-900 outline-none focus:border-brand-500"
-                />
-                <span className="text-[11px] text-ink-400">%</span>
+              <div key={cat.value} className="rounded-xl border border-line bg-surface-muted px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm text-ink-800">{cat.label}</span>
+                  <span className={`shrink-0 text-[11px] font-semibold ${tier.cls}`}>{tier.label}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={weight}
+                    onChange={(e) => updateEmploymentWeight(cat.value, Number(e.target.value))}
+                    className="min-w-0 flex-1 accent-brand-500"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={weight}
+                    onChange={(e) => updateEmploymentWeight(cat.value, Number(e.target.value) || 0)}
+                    className="w-14 shrink-0 rounded-lg border border-line bg-white px-2 py-1 text-right text-sm text-ink-900 outline-none focus:border-brand-500"
+                  />
+                  <span className="shrink-0 text-[11px] text-ink-400">%</span>
+                </div>
               </div>
             );
           })}

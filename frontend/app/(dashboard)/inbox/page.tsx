@@ -19,6 +19,7 @@ export default function InboxPage() {
 
   const [activeId, setActiveId] = useState<number | null>(null);
   const [filter, setFilter] = useState<'all' | 'leads'>('all');
+  const [mobileView, setMobileView] = useState<'list' | 'thread'>('list');
 
   // Auto-select the most recent conversation once data arrives.
   useEffect(() => {
@@ -41,6 +42,7 @@ export default function InboxPage() {
   function select(id: number) {
     setActiveId(id);
     markRead(id);
+    setMobileView('thread');
   }
 
   async function sendManual(text: string): Promise<boolean> {
@@ -56,15 +58,19 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="grid h-[calc(100vh-57px)] grid-cols-1 md:grid-cols-[320px_1fr] lg:grid-cols-[320px_1fr_300px]">
-      <ConversationList
-        conversations={filtered}
-        activeId={activeId}
-        onSelect={select}
-        filter={filter}
-        onFilter={setFilter}
-      />
-      <MessageThread conversation={active} messages={messages} onSend={sendManual} />
+    <div className="flex h-[calc(100vh-57px)] md:grid md:grid-cols-[320px_1fr] lg:grid-cols-[320px_1fr_300px]">
+      <div className={`min-h-0 min-w-0 flex-1 flex-col md:flex ${mobileView === 'thread' ? 'hidden' : 'flex'}`}>
+        <ConversationList
+          conversations={filtered}
+          activeId={activeId}
+          onSelect={select}
+          filter={filter}
+          onFilter={setFilter}
+        />
+      </div>
+      <div className={`min-h-0 min-w-0 flex-1 flex-col md:flex ${mobileView === 'list' ? 'hidden' : 'flex'}`}>
+        <MessageThread conversation={active} messages={messages} onSend={sendManual} onBack={() => setMobileView('list')} />
+      </div>
       <div className="hidden lg:block">
         <IntelPanel conversation={active} lead={activeLead} />
       </div>
