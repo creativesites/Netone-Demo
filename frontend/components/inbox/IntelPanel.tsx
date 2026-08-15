@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Circle, ExternalLink } from 'lucide-react';
+import { Check, Circle, ExternalLink, X, Clock } from 'lucide-react';
 import type { Conversation, Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { LeadScoreCard } from '../LeadScoreCard';
@@ -35,7 +35,7 @@ export function IntelPanel({ conversation, lead }: { conversation: Conversation 
   return (
     <div className="flex h-full flex-col overflow-y-auto scroll-thin border-l border-line bg-white p-4">
       <div className="mb-4 flex flex-col items-center text-center">
-        <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-emerald-500 text-lg font-bold text-white">
+        <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-brand-500 text-lg font-bold text-white">
           {(conversation.contact_name ?? conversation.phone ?? '?').slice(0, 1).toUpperCase()}
         </div>
         <div className="text-sm font-semibold text-ink-900">{conversation.contact_name ?? conversation.phone}</div>
@@ -61,7 +61,7 @@ export function IntelPanel({ conversation, lead }: { conversation: Conversation 
               <span className="text-[11px] font-bold text-ink-700">{pct}%</span>
             </div>
             <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-              <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-emerald-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+              <div className="h-full rounded-full bg-brand-500 transition-all duration-500" style={{ width: `${pct}%` }} />
             </div>
             <div className="space-y-1">
               {FIELDS.map((f) => {
@@ -91,8 +91,9 @@ export function IntelPanel({ conversation, lead }: { conversation: Conversation 
           <div className="mt-3 rounded-xl border border-line bg-surface-muted p-3">
             <div className="text-[10px] uppercase tracking-wide text-ink-400">Bitrix24 CRM</div>
             <div className="mt-1 flex items-center gap-2">
-              <span className={`text-xs font-semibold ${lead.bitrix_status === 'synced' ? 'text-emerald-600' : lead.bitrix_status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>
-                {lead.bitrix_status === 'synced' ? '✓ Synced' : lead.bitrix_status === 'failed' ? '✗ Failed' : '⏳ Pending'}
+              <span className={`flex items-center gap-1 text-xs font-semibold ${lead.bitrix_status === 'synced' ? 'text-emerald-600' : lead.bitrix_status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>
+                {lead.bitrix_status === 'synced' ? <Check size={12} /> : lead.bitrix_status === 'failed' ? <X size={12} /> : <Clock size={12} />}
+                {lead.bitrix_status === 'synced' ? 'Synced' : lead.bitrix_status === 'failed' ? 'Failed' : 'Pending'}
               </span>
               {lead.bitrix_lead_id && (() => {
                 const url = bitrixLeadUrl(lead.bitrix_lead_id);

@@ -1,8 +1,10 @@
+import { MessageCircle, Facebook, Instagram, Globe, Brain, Database } from 'lucide-react';
+
 const CHANNELS = [
-  { label: 'WhatsApp', icon: '💬', live: true },
-  { label: 'Facebook', icon: '📘', live: false },
-  { label: 'Instagram', icon: '📷', live: false },
-  { label: 'Website', icon: '🌐', live: false },
+  { label: 'WhatsApp', Icon: MessageCircle, live: true },
+  { label: 'Facebook', Icon: Facebook, live: false },
+  { label: 'Instagram', Icon: Instagram, live: false },
+  { label: 'Website', Icon: Globe, live: false },
 ];
 
 /**
@@ -28,7 +30,7 @@ export function OmnichannelArchitecture() {
                 c.live ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-line bg-surface-muted text-ink-400'
               }`}
             >
-              <span className="text-sm">{c.icon}</span>
+              <c.Icon size={14} />
               {c.label}
               {c.live ? (
                 <span className="ml-auto flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-emerald-600">
@@ -65,12 +67,12 @@ export function OmnichannelArchitecture() {
 
         <div className="flex flex-col justify-center gap-2 sm:flex-row">
           <div className="rounded-xl border border-line bg-white px-3 py-2.5 text-center">
-            <div className="text-base">🧠</div>
-            <div className="text-[10px] font-semibold text-ink-700">AI Engine</div>
+            <Brain size={16} className="mx-auto text-ink-500" />
+            <div className="mt-1 text-[10px] font-semibold text-ink-700">AI Engine</div>
           </div>
           <div className="rounded-xl border border-line bg-white px-3 py-2.5 text-center">
-            <div className="text-base">🗄️</div>
-            <div className="text-[10px] font-semibold text-ink-700">Bitrix24</div>
+            <Database size={16} className="mx-auto text-ink-500" />
+            <div className="mt-1 text-[10px] font-semibold text-ink-700">Bitrix24</div>
           </div>
         </div>
       </div>

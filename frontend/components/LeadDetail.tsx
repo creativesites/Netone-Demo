@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Check, X, Clock, PhoneCall } from 'lucide-react';
 import type { Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { LeadScoreCard } from './LeadScoreCard';
@@ -84,8 +84,9 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
         <div className="rounded-xl border border-line bg-white p-3">
           <div className="text-[10px] uppercase tracking-wide text-ink-400">Bitrix24</div>
           <div className="mt-1 flex items-center gap-2">
-            <span className={`text-sm font-semibold ${bitrixOk ? 'text-emerald-600' : lead.bitrix_status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>
-              {bitrixOk ? '✓ Synced' : lead.bitrix_status === 'failed' ? '✗ Failed' : '⏳ Pending'}
+            <span className={`flex items-center gap-1 text-sm font-semibold ${bitrixOk ? 'text-emerald-600' : lead.bitrix_status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>
+              {bitrixOk ? <Check size={14} /> : lead.bitrix_status === 'failed' ? <X size={14} /> : <Clock size={14} />}
+              {bitrixOk ? 'Synced' : lead.bitrix_status === 'failed' ? 'Failed' : 'Pending'}
             </span>
             {lead.bitrix_lead_id && bitrixUrl ? (
               <a
@@ -107,8 +108,10 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 rounded-xl border border-brand-500/20 bg-brand-50 p-3">
-        <span className="text-base">📞</span>
+      <div className="mt-4 flex items-center gap-3 rounded-xl border border-brand-500/20 bg-brand-50 p-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white">
+          <PhoneCall size={14} />
+        </span>
         <div>
           <div className="text-[10px] uppercase tracking-wide text-ink-400">Next Action</div>
           <div className="text-sm font-semibold text-ink-900">{lead.next_action ?? '—'}</div>

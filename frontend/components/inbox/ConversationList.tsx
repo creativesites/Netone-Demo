@@ -75,7 +75,7 @@ export function ConversationList({
                 }`}
               >
                 <div className="relative">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-emerald-500 text-xs font-bold text-white">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">
                     {initials(c.contact_name, c.phone)}
                   </div>
                   {c.sentiment && (

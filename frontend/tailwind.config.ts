@@ -6,10 +6,12 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: '#eef5ff',
-          100: '#dbeafe',
-          500: '#0071e3', // Apple blue
-          600: '#0077ed',
+          50: '#fbecec',
+          100: '#f5d3d5',
+          200: '#e7a3a8',
+          500: '#a6242e', // NetOne red
+          600: '#8a1e27',
+          700: '#6f171f',
         },
         ink: {
           900: '#1d1d1f', // Apple near-black

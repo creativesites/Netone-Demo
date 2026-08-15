@@ -1,38 +1,40 @@
-const stages = [
+import { MessageCircle, Target, Brain, Scale, Database, PhoneCall, type LucideIcon } from 'lucide-react';
+
+const stages: { label: string; sub: string; Icon: LucideIcon; desc: string }[] = [
   {
     label: 'Channel',
     sub: 'WhatsApp',
-    icon: '💬',
+    Icon: MessageCircle,
     desc: 'Customer messages NetOne on WhatsApp — a channel they already use, no app install required.',
   },
   {
     label: 'Lead Capture',
     sub: 'Normalized',
-    icon: '🎯',
+    Icon: Target,
     desc: 'Every channel (WhatsApp today; web chat, USSD, or call center next) is normalized into one lead format.',
   },
   {
     label: 'Intelligence',
     sub: 'AI Analysis',
-    icon: '🧠',
+    Icon: Brain,
     desc: 'AI reads the conversation and extracts intent, product interest, financing needs, and urgency.',
   },
   {
     label: 'Qualification',
     sub: 'Rules',
-    icon: '⚖️',
+    Icon: Scale,
     desc: 'Business rules decide whether this is a genuine sales opportunity worth a rep’s time.',
   },
   {
     label: 'Bitrix24',
     sub: 'CRM',
-    icon: '🗄️',
+    Icon: Database,
     desc: 'Qualified leads are created automatically in the real CRM — zero manual data entry.',
   },
   {
     label: 'Sales',
     sub: 'Follow-up',
-    icon: '📞',
+    Icon: PhoneCall,
     desc: 'A sales rep gets an assigned, ready-to-call lead with full context already captured.',
   },
 ];
@@ -54,8 +56,8 @@ export function IntegrationFlow({ activeIndex = -1 }: { activeIndex?: number }) 
                   active ? 'border-brand-500/30 bg-brand-50' : 'border-line bg-white'
                 }`}
               >
-                <div className="text-lg">{s.icon}</div>
-                <div className={`text-[11px] font-semibold ${active ? 'text-brand-600' : 'text-ink-700'}`}>
+                <s.Icon size={18} className={`mx-auto ${active ? 'text-brand-600' : 'text-ink-400'}`} />
+                <div className={`mt-1 text-[11px] font-semibold ${active ? 'text-brand-600' : 'text-ink-700'}`}>
                   {s.label}
                 </div>
                 <div className="text-[10px] text-ink-400">{s.sub}</div>

@@ -3,8 +3,8 @@ import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'NetOne · Lead Automation',
-  description: 'Omnichannel Marketing-to-CRM Lead Automation — live demo',
+  title: 'NetOne Lead Intelligence',
+  description: 'NetOne Lead Intelligence & Marketing Automation — connects digital channels to Bitrix24 CRM.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ClerkProvider
           appearance={{
             variables: {
-              colorPrimary: '#0071e3',
+              colorPrimary: '#a6242e',
               colorText: '#1d1d1f',
               colorBackground: '#ffffff',
               colorInputBackground: '#ffffff',
