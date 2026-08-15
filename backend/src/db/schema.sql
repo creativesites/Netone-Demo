@@ -83,6 +83,12 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages(conversation_id, created_at);
 
+-- The exact channel-native address to reply to (e.g. a WhatsApp JID). Not
+-- always a dialable phone number — WhatsApp increasingly uses LID privacy
+-- identifiers ("<digits>@lid") instead of phone-number JIDs, and replying by
+-- reconstructing "<phone-digits>@s.whatsapp.net" from those silently fails.
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS raw_reply_address TEXT;
+
 -- ── Runtime settings (auto-reply toggle, etc.) ──────────────
 CREATE TABLE IF NOT EXISTS app_settings (
   key        TEXT PRIMARY KEY,

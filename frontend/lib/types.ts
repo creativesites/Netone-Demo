@@ -47,6 +47,7 @@ export interface Conversation {
   external_contact_id: string;
   contact_name: string | null;
   phone: string | null;
+  raw_reply_address?: string | null;
   is_lead: boolean;
   lead_id: number | null;
   last_message: string | null;

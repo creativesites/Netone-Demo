@@ -44,7 +44,9 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
       const res = await fetch(`${config.whatsappServiceUrl.replace(/\/+$/, '')}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: conv.phone ?? conv.external_contact_id, text }),
+        // raw_reply_address (exact JID) takes priority — reconstructing a JID
+        // from a phone number fails for WhatsApp LID-identified contacts.
+        body: JSON.stringify({ recipient: conv.raw_reply_address ?? conv.phone ?? conv.external_contact_id, text }),
       });
       delivered = res.ok;
     } catch (err) {

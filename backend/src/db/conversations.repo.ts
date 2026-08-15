@@ -7,6 +7,11 @@ export interface Conversation {
   external_contact_id: string;
   contact_name: string | null;
   phone: string | null;
+  // Exact channel-native reply-to address (e.g. a WhatsApp JID). Not always a
+  // dialable phone number — see whatsapp-service's LID handling. Always
+  // prefer this over `phone` when sending a reply; it's the address the
+  // contact actually messaged in from.
+  raw_reply_address: string | null;
   is_lead: boolean;
   lead_id: number | null;
   last_message: string | null;
@@ -35,17 +40,19 @@ export async function upsertConversation(
   channel: string,
   externalContactId: string,
   contactName: string | null,
-  phone: string | null
+  phone: string | null,
+  rawReplyAddress: string | null = null
 ): Promise<Conversation> {
   const res = await query<Conversation>(
-    `INSERT INTO conversations (channel, external_contact_id, contact_name, phone)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO conversations (channel, external_contact_id, contact_name, phone, raw_reply_address)
+     VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (channel, external_contact_id) DO UPDATE SET
         contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name),
         phone = COALESCE(EXCLUDED.phone, conversations.phone),
+        raw_reply_address = COALESCE(EXCLUDED.raw_reply_address, conversations.raw_reply_address),
         updated_at = now()
      RETURNING *`,
-    [channel, externalContactId, contactName, phone]
+    [channel, externalContactId, contactName, phone, rawReplyAddress]
   );
   return res.rows[0];
 }

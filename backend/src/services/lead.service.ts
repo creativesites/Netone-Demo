@@ -60,7 +60,11 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
   }
 
   // ── 1. Inbox: record conversation + inbound message ────
-  let conv = await upsertConversation(event.channel, event.externalContactId, event.name, event.phone);
+  // The exact channel-native address to reply to (e.g. a WhatsApp JID) — not
+  // always a dialable phone number (WhatsApp LID privacy identifiers), so it
+  // must be preserved verbatim rather than reconstructed from the phone field.
+  const rawReplyAddress = typeof event.metadata?.remoteJid === 'string' ? event.metadata.remoteJid : null;
+  let conv = await upsertConversation(event.channel, event.externalContactId, event.name, event.phone, rawReplyAddress);
   const inbound = await addMessage(conv.id, 'inbound', 'contact', event.message, event.externalMessageId);
   conv = { ...conv, last_message: event.message, last_direction: 'inbound', unread_count: conv.unread_count + 1 };
   await mirrorConversation(conv as unknown as Record<string, unknown>);
@@ -265,7 +269,9 @@ async function runConversationalAgent(
   }
 
   // Send the reply over WhatsApp (best-effort) and record it in the inbox.
-  const sent = await sendWhatsapp(conv.phone ?? conv.external_contact_id, turn.reply);
+  // raw_reply_address (the exact JID) takes priority over phone — replying by
+  // reconstructing a JID from a phone number fails for LID-identified contacts.
+  const sent = await sendWhatsapp(conv.raw_reply_address ?? conv.phone ?? conv.external_contact_id, turn.reply);
   const outbound = await addMessage(conv.id, 'outbound', 'agent', turn.reply, null);
   const refreshed = await refreshConversation(conv.id);
   await mirrorMessage(conv.id, outbound as unknown as Record<string, unknown>);
@@ -345,6 +351,10 @@ async function sendWhatsapp(recipient: string, text: string): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recipient, text }),
     });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      logger.warn({ recipient, status: res.status, body: truncate(body, 200) }, 'WhatsApp send rejected');
+    }
     return res.ok;
   } catch (err) {
     logger.warn({ err: String(err) }, 'WhatsApp send failed (service offline?)');

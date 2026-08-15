@@ -307,23 +307,39 @@ async function connectToWhatsApp() {
                     continue;
                 }
 
+                // WhatsApp increasingly identifies contacts by LID (a privacy
+                // identifier, e.g. "199385283571777@lid") rather than their real
+                // phone-number JID ("260971234567@s.whatsapp.net"). When that
+                // happens, remoteJid IS the LID — its digits are NOT a dialable
+                // phone number. Baileys separately exposes the real phone-number
+                // JID as msg.key.senderPn when it's able to resolve one. Use that
+                // for the human-facing phone number (dashboard, CRM), but always
+                // reply to the EXACT original remoteJid — reconstructing a
+                // "<digits>@s.whatsapp.net" JID from LID digits sends to a JID
+                // that doesn't exist and silently fails, which is why outbound
+                // replies were never reaching WhatsApp.
+                const senderPn = msg.key.senderPn || null;
+                const displayPhone = jidToPhone(senderPn || remoteJid);
+
                 // Channel-neutral payload. The backend's WhatsApp adapter maps this
                 // into its internal NormalizedLeadEvent — the same shape a future
                 // Meta/Instagram/TikTok adapter would produce.
                 const payload = {
                     channel: 'whatsapp',
                     externalMessageId: msg.key.id,
-                    externalContactId: jidToPhone(remoteJid),
-                    phone: jidToPhone(remoteJid),
+                    externalContactId: displayPhone || remoteJid,
+                    phone: displayPhone,
                     name: msg.pushName || null,
                     message: text.trim(),
                     timestamp: msg.messageTimestamp
                         ? new Date(Number(msg.messageTimestamp) * 1000).toISOString()
                         : new Date().toISOString(),
-                    metadata: { remoteJid },
+                    // remoteJid is the exact, authoritative reply-to address —
+                    // the backend stores it and passes it straight back to /send.
+                    metadata: { remoteJid, senderPn, isLid: remoteJid.endsWith('@lid') },
                 };
 
-                logger.info(`Inbound from [${payload.phone}] (${payload.name || 'unknown'}): "${text.trim()}"`);
+                logger.info(`Inbound from [${payload.phone || remoteJid}] (${payload.name || 'unknown'}): "${text.trim()}"`);
                 try {
                     await forwardToBackend(payload);
                 } catch (error) {
@@ -413,12 +429,20 @@ app.post('/send', async (req, res) => {
         return res.status(503).json({ success: false, error: 'WhatsApp is not connected' });
     }
     try {
+        // Prefer an exact JID passed by the backend (recommended — it's the
+        // authoritative address a contact actually messaged in from, whether
+        // that's a normal phone-number JID or a @lid privacy identifier).
+        // Only reconstruct "<digits>@s.whatsapp.net" as a last resort for
+        // plain phone numbers, which only works for non-LID contacts.
         const jid = recipient.includes('@') ? recipient : `${recipient.replace(/\D/g, '')}@s.whatsapp.net`;
+        logger.info(`Sending WhatsApp message to [${jid}]: "${text.slice(0, 60)}"`);
         await sock.sendPresenceUpdate('composing', jid);
         await sock.sendMessage(jid, { text });
         await sock.sendPresenceUpdate('paused', jid);
+        logger.info(`Message delivered to [${jid}].`);
         return res.json({ success: true });
     } catch (err) {
+        logger.error(`Failed to send WhatsApp message to [${recipient}]: ${err.message}`);
         return res.status(502).json({ success: false, error: err.message });
     }
 });
