@@ -50,6 +50,7 @@ export interface CollectedProfile {
   financing: string | null;
   budget: string | null;
   location: string | null;
+  employment: string | null;
 }
 
 export const REQUIRED_FIELDS: (keyof CollectedProfile)[] = [
@@ -58,7 +59,18 @@ export const REQUIRED_FIELDS: (keyof CollectedProfile)[] = [
   'financing',
   'budget',
   'location',
+  'employment',
 ];
+
+/** One line item in the configurable lead-scoring breakdown. */
+export interface ScoreCriterionResult {
+  key: string;
+  label: string;
+  weight: number;
+  earned: number;
+  met: boolean;
+  required: boolean;
+}
 
 export interface AgentTurn {
   reply: string;
@@ -87,6 +99,8 @@ export interface Lead {
   bitrix_synced_at: string | null;
   assigned_to: string | null;
   next_action: string | null;
+  score: number | null;
+  score_breakdown: ScoreCriterionResult[] | null;
   collected: CollectedProfile;
   profile_complete: boolean;
   created_at: string;

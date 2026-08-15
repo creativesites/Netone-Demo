@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
-import { LayoutDashboard, MessagesSquare } from 'lucide-react';
+import { LayoutDashboard, MessagesSquare, SlidersHorizontal } from 'lucide-react';
 import { AutoReplyToggle } from './AutoReplyToggle';
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/inbox', label: 'Inbox', icon: MessagesSquare },
+  { href: '/settings/qualification-rules', label: 'Rules', icon: SlidersHorizontal },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -24,7 +25,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-ink-900">NetOne</div>
-            <div className="text-[10px] text-ink-400">Lead Automation</div>
+            <div className="text-[10px] text-ink-400">Lead Intelligence Platform</div>
           </div>
         </div>
         <nav className="flex flex-col gap-1">

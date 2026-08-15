@@ -27,10 +27,21 @@ export interface Lead {
   bitrix_synced_at: string | null;
   assigned_to: string | null;
   next_action: string | null;
+  score: number | null;
+  score_breakdown: ScoreCriterionResult[] | null;
   collected?: CollectedProfile | null;
   profile_complete?: boolean | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ScoreCriterionResult {
+  key: string;
+  label: string;
+  weight: number;
+  earned: number;
+  met: boolean;
+  required: boolean;
 }
 
 export interface CollectedProfile {
@@ -39,6 +50,20 @@ export interface CollectedProfile {
   financing: string | null;
   budget: string | null;
   location: string | null;
+  employment: string | null;
+}
+
+export interface QualificationCriterionRule {
+  key: string;
+  label: string;
+  weight: number;
+  required: boolean;
+}
+
+export interface QualificationRules {
+  criteria: QualificationCriterionRule[];
+  qualifiedThreshold: number;
+  followUpThreshold: number;
 }
 
 export interface Conversation {

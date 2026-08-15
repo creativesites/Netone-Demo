@@ -15,9 +15,9 @@ export function Header({
   return (
     <header className="flex flex-col gap-4 pb-6 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink-900">Lead Automation</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink-900">NetOne Lead Intelligence &amp; Marketing Automation</h1>
         <p className="mt-0.5 text-sm text-ink-500">
-          Omnichannel Marketing-to-CRM Lead Intelligence
+          Connects every digital channel to Bitrix24 — capture, understand, qualify, assign.
         </p>
       </div>
 

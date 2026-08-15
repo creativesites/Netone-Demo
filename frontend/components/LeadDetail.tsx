@@ -3,6 +3,7 @@
 import { ExternalLink } from 'lucide-react';
 import type { Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
+import { LeadScoreCard } from './LeadScoreCard';
 
 function qualBadge(q: string | null) {
   switch (q) {
@@ -67,11 +68,16 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
       <div className="mt-4 rounded-xl border border-line bg-surface-muted p-3">
         <div className="text-[10px] uppercase tracking-wide text-ink-400">AI Summary</div>
         <p className="mt-1 text-sm text-ink-800">{lead.ai_summary ?? '—'}</p>
+        {lead.ai_reasoning && <p className="mt-1 text-xs text-ink-500">{lead.ai_reasoning}</p>}
         {lead.ai_source && (
           <div className="mt-1 text-[10px] text-ink-400">
             via {lead.ai_source === 'deterministic' ? 'deterministic fallback' : lead.ai_source}
           </div>
         )}
+      </div>
+
+      <div className="mt-4">
+        <LeadScoreCard score={lead.score} breakdown={lead.score_breakdown} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4">

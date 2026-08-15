@@ -38,8 +38,8 @@ export async function upsertLead(
     `INSERT INTO leads (
         external_contact_id, channel, source, name, phone, initial_message,
         intent, product, financing_interest, purchase_intent, qualification_status,
-        ai_reasoning, ai_summary, ai_source, assigned_to, next_action, bitrix_status
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending')
+        ai_reasoning, ai_summary, ai_source, assigned_to, next_action, score, score_breakdown, bitrix_status
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'pending')
      ON CONFLICT (channel, external_contact_id) DO UPDATE SET
         name = COALESCE(EXCLUDED.name, leads.name),
         phone = COALESCE(EXCLUDED.phone, leads.phone),
@@ -54,6 +54,8 @@ export async function upsertLead(
         ai_source = EXCLUDED.ai_source,
         assigned_to = EXCLUDED.assigned_to,
         next_action = EXCLUDED.next_action,
+        score = EXCLUDED.score,
+        score_breakdown = EXCLUDED.score_breakdown,
         updated_at = now()
      RETURNING *`,
     [
@@ -73,7 +75,25 @@ export async function upsertLead(
       analysis.aiSource,
       qual.assignedTo,
       qual.nextAction,
+      qual.score,
+      JSON.stringify(qual.breakdown),
     ]
+  );
+  return res.rows[0];
+}
+
+/** Recompute qualification/score after new profile info is collected (e.g. a conversational turn). */
+export async function updateQualification(leadId: number, qual: QualificationResult): Promise<Lead> {
+  const res = await query<Lead>(
+    `UPDATE leads SET
+        qualification_status = $2,
+        assigned_to = $3,
+        next_action = $4,
+        score = $5,
+        score_breakdown = $6,
+        updated_at = now()
+      WHERE id = $1 RETURNING *`,
+    [leadId, qual.qualification, qual.assignedTo, qual.nextAction, qual.score, JSON.stringify(qual.breakdown)]
   );
   return res.rows[0];
 }

@@ -95,9 +95,13 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS raw_reply_address TEXT;
 -- to a successful one.
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivery_status TEXT;
 
--- ── Runtime settings (auto-reply toggle, etc.) ──────────────
+-- ── Runtime settings (auto-reply toggle, qualification rules, etc.) ──
 CREATE TABLE IF NOT EXISTS app_settings (
   key        TEXT PRIMARY KEY,
   value      JSONB       NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Configurable lead-scoring output, recomputed on every qualification pass.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS score INT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS score_breakdown JSONB;

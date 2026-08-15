@@ -3,6 +3,7 @@
 import { Check, Circle, ExternalLink } from 'lucide-react';
 import type { Conversation, Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
+import { LeadScoreCard } from '../LeadScoreCard';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -19,6 +20,7 @@ const FIELDS: { key: keyof NonNullable<Lead['collected']>; label: string }[] = [
   { key: 'financing', label: 'Financing' },
   { key: 'budget', label: 'Budget' },
   { key: 'location', label: 'Location' },
+  { key: 'employment', label: 'Employment' },
 ];
 
 export function IntelPanel({ conversation, lead }: { conversation: Conversation | null; lead: Lead | null }) {
@@ -80,6 +82,10 @@ export function IntelPanel({ conversation, lead }: { conversation: Conversation 
             <Row label="Purchase intent" value={<span className="capitalize">{lead.purchase_intent ?? '—'}</span>} />
             <Row label="Qualification" value={<span className="capitalize">{(lead.qualification_status ?? '—').replace(/_/g, ' ')}</span>} />
             <Row label="Assigned" value={lead.assigned_to ?? '—'} />
+          </div>
+
+          <div className="mt-3">
+            <LeadScoreCard score={lead.score} breakdown={lead.score_breakdown} nextAction={lead.next_action} compact />
           </div>
 
           <div className="mt-3 rounded-xl border border-line bg-surface-muted p-3">

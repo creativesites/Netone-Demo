@@ -18,7 +18,7 @@ import type { CollectedProfile, NormalizedLeadEvent, PipelineStep, Lead } from '
 import { classifyLead, converse } from './ai.service.js';
 import { qualify } from './qualification.service.js';
 import { bitrix24Adapter } from '../adapters/crm/bitrix24.adapter.js';
-import { getSettings } from '../db/settings.repo.js';
+import { getSettings, getQualificationRules } from '../db/settings.repo.js';
 import {
   claimMessage,
   findLead,
@@ -26,6 +26,7 @@ import {
   upsertLead,
   updateBitrix,
   updateCollected,
+  updateQualification,
   recordEvent,
   getLeadEvents,
   getMetrics,
@@ -147,8 +148,22 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
       degraded ? 'fallback' : `${analysis.intent} · ${analysis.purchaseIntent} intent`
     );
 
-    // ── 4. Qualification (deterministic) ─────────────────
-    const qual = qualify(analysis);
+    // ── 4. Qualification & scoring (deterministic, configurable) ─
+    // Score against what we already know: the existing collected profile, or a
+    // fresh seed built from this first message, so the score is never computed
+    // against empty data for a brand-new lead.
+    const seedCollected: CollectedProfile = existing
+      ? existing.collected
+      : {
+          name: event.name ?? null,
+          product: analysis.product ?? null,
+          financing: analysis.financingInterest ? 'interested' : null,
+          budget: null,
+          location: null,
+          employment: null,
+        };
+    const rules = await getQualificationRules();
+    const qual = qualify(analysis, seedCollected, !!event.phone, rules);
 
     // ── 5. Persist lead ──────────────────────────────────
     let lead = await upsertLead(event, analysis, qual);
@@ -156,14 +171,7 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
 
     // Seed collected profile from what we already know (first message only).
     if (!existing) {
-      const seed: CollectedProfile = {
-        name: event.name ?? null,
-        product: analysis.product ?? null,
-        financing: analysis.financingInterest ? 'interested' : null,
-        budget: null,
-        location: null,
-      };
-      lead = await updateCollected(lead.id, seed, false);
+      lead = await updateCollected(lead.id, seedCollected, false);
     }
 
     await updateConversationMeta(conv.id, {
@@ -260,7 +268,21 @@ async function runConversationalAgent(
     .join('\n');
 
   const { turn } = await converse(historyLines, lead.collected, lead.collected.name ?? conv.contact_name);
-  const updatedLead = await updateCollected(lead.id, turn.collected, turn.complete);
+  let updatedLead = await updateCollected(lead.id, turn.collected, turn.complete);
+
+  // Re-score now that the conversation collected more of the profile — the
+  // lead's score/qualification should visibly improve as fields fill in.
+  const rules = await getQualificationRules();
+  const qual = qualify(analysis, turn.collected, !!(conv.phone || conv.raw_reply_address), rules);
+  updatedLead = await updateQualification(lead.id, qual);
+  await step(
+    correlationId,
+    'qualification_updated',
+    'Qualification re-scored',
+    'ok',
+    `${qual.score}/100 · ${qual.qualification.replace(/_/g, ' ')}`,
+    lead.id
+  );
   await mirrorLead(updatedLead as unknown as Record<string, unknown>);
 
   if (!settings.autoReplyEnabled) {

@@ -142,3 +142,12 @@ export async function mirrorStatus(status: Record<string, unknown>): Promise<voi
 export async function mirrorSettings(settings: Record<string, unknown>): Promise<void> {
   await safe(() => db!.collection('settings').doc('app').set({ ...settings, updatedAt: TS() }, { merge: true }), 'settings');
 }
+
+// Separate doc (not merged into settings/app) so useRealtimeDoc's raw
+// snap.data() cast matches the QualificationRules shape directly.
+export async function mirrorQualificationRules(rules: Record<string, unknown>): Promise<void> {
+  await safe(
+    () => db!.collection('settings').doc('qualificationRules').set({ ...rules, updatedAt: TS() }),
+    'qualificationRules'
+  );
+}
