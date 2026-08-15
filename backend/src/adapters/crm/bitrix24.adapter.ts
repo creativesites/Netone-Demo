@@ -56,6 +56,14 @@ async function callBitrix(method: string, body: unknown): Promise<any> {
   throw lastErr;
 }
 
+const CREDIT_RISK_LABEL: Record<string, string> = {
+  low: 'Low risk',
+  medium: 'Medium risk',
+  high: 'High risk',
+  ineligible: 'Not financing-eligible',
+  unknown: 'Unknown',
+};
+
 function collectedLines(collected: CollectedProfile): string[] {
   return [
     '',
@@ -65,7 +73,29 @@ function collectedLines(collected: CollectedProfile): string[] {
     `- Financing: ${collected.financing ?? '—'}`,
     `- Budget: ${collected.budget ?? '—'}`,
     `- Location: ${collected.location ?? '—'}`,
+    `- Employment: ${collected.employment ?? '—'}`,
+    `- Monthly income: ${collected.monthlyIncome ?? '—'}`,
   ];
+}
+
+// This mirrors the deterministic qualification.service.ts output that's
+// already persisted on the lead — never the AI's own raw qualification
+// guess. Score/tier/risk/routing must stay deterministic and configurable
+// (see qualification.service.ts); the CRM record has to reflect the same
+// decision the dashboard shows, not a second, AI-driven opinion.
+function scoreLines(lead: Lead): string[] {
+  const lines = [
+    '',
+    'Qualification (NetOne rules engine):',
+    `- Score: ${lead.score ?? '—'}/100`,
+    `- Qualification: ${(lead.qualification_status ?? 'pending').replace(/_/g, ' ')}`,
+  ];
+  if (lead.credit_risk && lead.credit_risk !== 'unknown') {
+    lines.push(`- Financing eligibility indicator: ${CREDIT_RISK_LABEL[lead.credit_risk] ?? lead.credit_risk}`);
+    lines.push('  (indicator only — NOT a loan approval; requires financing-partner verification)');
+  }
+  lines.push(`- Next action: ${lead.next_action ?? '—'}`);
+  return lines;
 }
 
 export const bitrix24Adapter: CRMAdapter = {
@@ -89,8 +119,8 @@ export const bitrix24Adapter: CRMAdapter = {
       `Product interest: ${analysis.product ?? 'n/a'}`,
       `Financing interest: ${analysis.financingInterest ? 'Yes' : 'No'}`,
       `Purchase intent: ${analysis.purchaseIntent}`,
-      `Qualification: ${analysis.qualification}`,
       `AI summary: ${analysis.summary}`,
+      ...scoreLines(lead),
       ...collectedLines(lead.collected),
     ];
 
@@ -99,7 +129,7 @@ export const bitrix24Adapter: CRMAdapter = {
       NAME: lead.name ?? undefined,
       SOURCE_ID: 'WEB',
       SOURCE_DESCRIPTION: `NetOne Lead Automation — ${lead.channel}`,
-      STATUS_ID: statusFor(analysis.qualification),
+      STATUS_ID: statusFor(lead.qualification_status),
       COMMENTS: commentLines.join('\n'),
       OPENED: 'Y',
     };
@@ -126,10 +156,10 @@ export const bitrix24Adapter: CRMAdapter = {
   async updateLead(crmLeadId: string, lead: Lead, analysis: LeadAnalysis): Promise<boolean> {
     if (!flags.hasBitrix) return false;
     const fields: Record<string, unknown> = {
-      STATUS_ID: statusFor(analysis.qualification),
+      STATUS_ID: statusFor(lead.qualification_status),
       COMMENTS: [
         `AI summary: ${analysis.summary}`,
-        `Qualification: ${analysis.qualification}`,
+        ...scoreLines(lead),
         ...collectedLines(lead.collected),
       ].join('\n'),
     };

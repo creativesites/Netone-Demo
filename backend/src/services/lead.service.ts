@@ -98,10 +98,20 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
   try {
     await step(correlationId, 'contact_identified', 'Contact identified', 'ok', event.phone ?? '');
 
-    // ── 2. AI GATEKEEPER ─────────────────────────────────
+    // ── 2. Existing vs new ────────────────────────────────
+    // Looked up BEFORE the gatekeeper on purpose: the gatekeeper classifies
+    // this one message in complete isolation (no conversation history), so a
+    // terse mid-conversation reply like "K4500" or "Lusaka" can easily score
+    // isLead:false with nothing to contradict it. A contact who already has
+    // an open lead must never be silently un-classified back to "not a lead"
+    // by a single ambiguous follow-up — that would kill the conversation
+    // (and the credit-worthiness flow this demo is built around) mid-flight.
+    const existing = await findLead(event.channel, event.externalContactId);
+
+    // ── 3. AI GATEKEEPER ─────────────────────────────────
     const { analysis, degraded } = await classifyLead(event.message, event.name);
 
-    if (!analysis.isLead) {
+    if (!analysis.isLead && !existing) {
       await updateConversationMeta(conv.id, {
         is_lead: false,
         intent: analysis.intent,
@@ -131,8 +141,6 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
       degraded ? 'gatekeeper (fallback)' : `${analysis.intent}`
     );
 
-    // ── 3. Existing vs new ───────────────────────────────
-    const existing = await findLead(event.channel, event.externalContactId);
     await step(
       correlationId,
       existing ? 'existing_lead' : 'new_lead_detected',
