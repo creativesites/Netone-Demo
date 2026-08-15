@@ -272,15 +272,15 @@ async function runConversationalAgent(
   // raw_reply_address (the exact JID) takes priority over phone — replying by
   // reconstructing a JID from a phone number fails for LID-identified contacts.
   const sent = await sendWhatsapp(conv.raw_reply_address ?? conv.phone ?? conv.external_contact_id, turn.reply);
-  const outbound = await addMessage(conv.id, 'outbound', 'agent', turn.reply, null);
+  const outbound = await addMessage(conv.id, 'outbound', 'agent', turn.reply, null, sent ? 'sent' : 'failed');
   const refreshed = await refreshConversation(conv.id);
   await mirrorMessage(conv.id, outbound as unknown as Record<string, unknown>);
   await mirrorConversation(refreshed as unknown as Record<string, unknown>);
   await step(
     correlationId,
     'auto_reply_sent',
-    sent ? 'Assistant replied' : 'Reply queued (WhatsApp offline)',
-    sent ? 'ok' : 'info',
+    sent ? 'Assistant replied' : 'Reply failed to send — WhatsApp unreachable',
+    sent ? 'ok' : 'error',
     truncate(turn.reply, 60),
     lead.id
   );

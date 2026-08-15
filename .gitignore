@@ -20,6 +20,7 @@ build/
 backend/dist/
 frontend/.next/
 frontend/out/
+*.tsbuildinfo
 
 # ── Postgres local test cluster ──────────────────────────
 .pgdata/

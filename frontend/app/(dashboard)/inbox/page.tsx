@@ -43,9 +43,16 @@ export default function InboxPage() {
     markRead(id);
   }
 
-  async function sendManual(text: string) {
-    if (activeId == null) return;
-    await apiPost(`/api/conversations/${activeId}/send`, { text });
+  async function sendManual(text: string): Promise<boolean> {
+    if (activeId == null) return false;
+    try {
+      const res = await apiPost(`/api/conversations/${activeId}/send`, { text });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { delivered?: boolean };
+      return Boolean(data.delivered);
+    } catch {
+      return false;
+    }
   }
 
   return (

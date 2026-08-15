@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Send, Bot } from 'lucide-react';
+import { Send, Bot, AlertTriangle } from 'lucide-react';
 import type { ChatMessage, Conversation } from '@/lib/types';
 
 function fmt(iso: string) {
@@ -19,15 +19,20 @@ export function MessageThread({
 }: {
   conversation: Conversation | null;
   messages: ChatMessage[];
-  onSend: (text: string) => Promise<void>;
+  onSend: (text: string) => Promise<boolean>;
 }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, conversation?.id]);
+
+  useEffect(() => {
+    setSendError(false);
+  }, [conversation?.id]);
 
   if (!conversation) {
     return (
@@ -42,8 +47,10 @@ export function MessageThread({
     if (!t) return;
     setSending(true);
     setText('');
+    setSendError(false);
     try {
-      await onSend(t);
+      const delivered = await onSend(t);
+      if (!delivered) setSendError(true);
     } finally {
       setSending(false);
     }
@@ -73,7 +80,14 @@ export function MessageThread({
                   </div>
                 )}
                 <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                <div className={`mt-0.5 text-right text-[9px] ${mine ? 'text-white/70' : 'text-ink-400'}`}>{fmt(m.created_at)}</div>
+                <div className={`mt-0.5 flex items-center justify-end gap-1 text-[9px] ${mine ? 'text-white/70' : 'text-ink-400'}`}>
+                  {mine && m.delivery_status === 'failed' && (
+                    <span className="flex items-center gap-0.5 font-semibold text-amber-200">
+                      <AlertTriangle size={9} /> not delivered
+                    </span>
+                  )}
+                  <span>{fmt(m.created_at)}</span>
+                </div>
               </div>
             </div>
           );
@@ -82,6 +96,11 @@ export function MessageThread({
       </div>
 
       <div className="border-t border-line bg-white p-3">
+        {sendError && (
+          <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-medium text-red-700">
+            <AlertTriangle size={12} /> Message not delivered — WhatsApp may be disconnected. Check the Connect panel.
+          </div>
+        )}
         <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-muted px-3 py-2">
           <input
             value={text}

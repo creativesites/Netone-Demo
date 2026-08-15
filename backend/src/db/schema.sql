@@ -89,6 +89,12 @@ CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages(conversation_id
 -- reconstructing "<phone-digits>@s.whatsapp.net" from those silently fails.
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS raw_reply_address TEXT;
 
+-- Outbound delivery outcome — null for inbound messages (not applicable) or
+-- outbound messages sent before this column existed. Lets the inbox show a
+-- clear "not delivered" indicator instead of a failed send looking identical
+-- to a successful one.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivery_status TEXT;
+
 -- ── Runtime settings (auto-reply toggle, etc.) ──────────────
 CREATE TABLE IF NOT EXISTS app_settings (
   key        TEXT PRIMARY KEY,

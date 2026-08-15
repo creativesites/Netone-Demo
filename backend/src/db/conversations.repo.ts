@@ -32,6 +32,8 @@ export interface Message {
   sender: 'contact' | 'agent' | 'system';
   body: string;
   external_message_id: string | null;
+  // null for inbound messages (n/a). For outbound: 'sent' | 'failed'.
+  delivery_status: 'sent' | 'failed' | null;
   created_at: string;
 }
 
@@ -62,12 +64,13 @@ export async function addMessage(
   direction: 'inbound' | 'outbound',
   sender: 'contact' | 'agent' | 'system',
   body: string,
-  externalMessageId: string | null
+  externalMessageId: string | null,
+  deliveryStatus: 'sent' | 'failed' | null = null
 ): Promise<Message> {
   const res = await query<Message>(
-    `INSERT INTO messages (conversation_id, direction, sender, body, external_message_id)
-     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [conversationId, direction, sender, body, externalMessageId]
+    `INSERT INTO messages (conversation_id, direction, sender, body, external_message_id, delivery_status)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [conversationId, direction, sender, body, externalMessageId, deliveryStatus]
   );
   // Roll up onto the conversation for list previews.
   await query(

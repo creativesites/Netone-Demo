@@ -53,7 +53,7 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
       logger.warn({ err: String(err) }, 'Manual send failed (WhatsApp offline?)');
     }
 
-    const msg = await addMessage(id, 'outbound', 'agent', text, null);
+    const msg = await addMessage(id, 'outbound', 'agent', text, null, delivered ? 'sent' : 'failed');
     const updated = await getConversation(id);
     await mirrorMessage(id, msg as unknown as Record<string, unknown>);
     if (updated) await mirrorConversation(updated as unknown as Record<string, unknown>);

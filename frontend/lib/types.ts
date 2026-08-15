@@ -68,6 +68,7 @@ export interface ChatMessage {
   sender: 'contact' | 'agent' | 'system';
   body: string;
   external_message_id: string | null;
+  delivery_status?: 'sent' | 'failed' | null;
   created_at: string;
 }
 
