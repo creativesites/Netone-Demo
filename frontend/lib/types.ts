@@ -29,6 +29,7 @@ export interface Lead {
   next_action: string | null;
   score: number | null;
   score_breakdown: ScoreCriterionResult[] | null;
+  credit_risk?: 'low' | 'medium' | 'high' | 'ineligible' | 'unknown' | null;
   collected?: CollectedProfile | null;
   profile_complete?: boolean | null;
   created_at: string;
@@ -51,6 +52,7 @@ export interface CollectedProfile {
   budget: string | null;
   location: string | null;
   employment: string | null;
+  monthlyIncome: string | null;
 }
 
 export interface QualificationCriterionRule {
@@ -60,10 +62,28 @@ export interface QualificationCriterionRule {
   required: boolean;
 }
 
+export type EmploymentCategory =
+  | 'civil_servant'
+  | 'formally_employed'
+  | 'self_employed'
+  | 'informally_employed'
+  | 'student'
+  | 'unemployed';
+
+export const EMPLOYMENT_CATEGORIES: { value: EmploymentCategory; label: string }[] = [
+  { value: 'civil_servant', label: 'Civil servant' },
+  { value: 'formally_employed', label: 'Formally employed' },
+  { value: 'self_employed', label: 'Self-employed / business owner' },
+  { value: 'informally_employed', label: 'Informally employed' },
+  { value: 'student', label: 'Student' },
+  { value: 'unemployed', label: 'Unemployed / no income' },
+];
+
 export interface QualificationRules {
   criteria: QualificationCriterionRule[];
   qualifiedThreshold: number;
   followUpThreshold: number;
+  employmentWeights: Record<EmploymentCategory, number>;
 }
 
 export interface Conversation {
@@ -117,6 +137,30 @@ export interface IntegrationStatus {
   leadEngine: { status: string; detail?: string };
   bitrix: { status: string; detail?: string };
   ai: { status: string; provider: string };
+}
+
+export interface KbProduct {
+  id: number;
+  name: string;
+  category: string;
+  price_zmw: number | null;
+  price_note: string | null;
+  specs: Record<string, string>;
+  description: string | null;
+  financing: string | null;
+  source_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KbDocument {
+  id: number;
+  title: string;
+  doc_type: 'note' | 'url' | 'upload';
+  source: string | null;
+  content: string;
+  status: 'ingesting' | 'indexed' | 'failed';
+  created_at: string;
 }
 
 export interface ActiveEvent {

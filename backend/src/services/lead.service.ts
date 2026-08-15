@@ -161,6 +161,7 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
           budget: null,
           location: null,
           employment: null,
+          monthlyIncome: null,
         };
     const rules = await getQualificationRules();
     const qual = qualify(analysis, seedCollected, !!event.phone, rules);

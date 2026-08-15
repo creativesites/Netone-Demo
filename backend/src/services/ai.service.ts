@@ -15,6 +15,8 @@ import { config, flags } from '../config.js';
 import { logger } from '../logger.js';
 import type { AgentTurn, CollectedProfile, LeadAnalysis } from '../types.js';
 import { REQUIRED_FIELDS } from '../types.js';
+import { isNegativeAnswer } from './qualification.service.js';
+import { getKnowledgeContext } from '../db/kb.repo.js';
 
 // Models sometimes return numbers (e.g. budget: 8000) where we want a string.
 // Coerce number → string, keep null/undefined as null.
@@ -74,27 +76,36 @@ const agentSchema = z.object({
     budget: nullableString,
     location: nullableString,
     employment: nullableString,
+    monthlyIncome: nullableString,
   }),
   complete: z.boolean(),
 });
 
-const AGENT_PROMPT = `You are "Nia", a warm, friendly and professional sales assistant for NetOne Zambia (locally made laptops & tech, available on financing).
+const AGENT_PROMPT = `You are "Nia", a warm, friendly and professional sales assistant for NetOne Zambia (locally made laptops & tech, available on financing through partner lenders).
 
 You are chatting with a prospect on WhatsApp. Your goals, in order:
 1. Be genuinely helpful, natural and concise — like a real Zambian sales rep. 1–3 short sentences, WhatsApp tone. You may use at most one tasteful emoji.
-2. Naturally collect these details you don't yet have: full name, which product they want, financing preference (cash or installments + rough term), budget/price range, their location/city, and — if they're interested in financing — their employment status (e.g. formally employed, self-employed, student).
-3. Ask for only ONE missing detail per message so it feels like a conversation, not a form. Acknowledge what they just said first.
-4. When you have all details, warmly confirm a NetOne sales rep will follow up shortly, and set complete=true.
+2. Naturally collect these details you don't yet have: full name, which product they want, financing preference (cash or installments), budget/price range, their location/city.
+3. If — and only if — they want financing, also collect: their employment situation in their own words (e.g. "I'm a teacher", "I run my own shop", "self-employed", "not working right now" — don't force a category, just capture what they say naturally) and roughly their monthly income. Explain briefly this is to check financing eligibility with our partner lenders — be tactful, this is sensitive.
+4. Never ask about employment or income if they said they're paying cash.
+5. Ask for only ONE missing detail per message so it feels like a conversation, not a form. Acknowledge what they just said first.
+6. When you have all details, warmly confirm a NetOne sales rep will follow up shortly, and set complete=true.
+7. If asked about specific products, prices or specs, answer ONLY from the KNOWLEDGE BASE section provided below. If something isn't in it, say a sales rep will confirm — never invent a price or spec.
 
-You are given the conversation so far and the details already collected. Return ONLY a JSON object:
+You are given NetOne's knowledge base, the conversation so far, and the details already collected. Return ONLY a JSON object:
 - "reply": the next message to send the prospect
-- "collected": { "name", "product", "financing", "budget", "location", "employment" } — carry forward known values, fill in anything new from the latest message, use null when still unknown
-- "complete": true only once every field is filled and you've confirmed follow-up
+- "collected": { "name", "product", "financing", "budget", "location", "employment", "monthlyIncome" } — carry forward known values, fill in anything new from the latest message, use null when still unknown or not applicable
+- "complete": true only once every relevant field is filled and you've confirmed follow-up
 
 Return strictly valid JSON. No markdown.`;
 
-function missingFields(c: CollectedProfile): string[] {
-  return REQUIRED_FIELDS.filter((f) => !c[f] || String(c[f]).trim() === '');
+/** Employment/income are only relevant once the prospect has said they want financing. */
+function missingFields(c: CollectedProfile): (keyof CollectedProfile)[] {
+  const wantsFinancing = c.financing ? !isNegativeAnswer(c.financing) : null; // null = not yet known
+  return REQUIRED_FIELDS.filter((f) => {
+    if ((f === 'employment' || f === 'monthlyIncome') && wantsFinancing === false) return false;
+    return !c[f] || String(c[f]).trim() === '';
+  });
 }
 
 // ── Provider calls ────────────────────────────────────────────
@@ -187,7 +198,8 @@ function converseDeterministic(history: string, collected: CollectedProfile): Ag
     financing: 'Would you prefer to pay cash or on financing (monthly installments)?',
     budget: 'Roughly what budget did you have in mind?',
     location: 'Which city or area are you based in, so we can arrange delivery or your nearest branch?',
-    employment: 'Are you formally employed, self-employed, or a student? This helps us confirm financing eligibility.',
+    employment: 'To check financing eligibility with our partner lenders — are you formally employed, a civil servant, self-employed, or currently not working?',
+    monthlyIncome: 'And roughly what is your monthly income? This helps us confirm affordability with our financing partner.',
   };
   if (missing.length === 0) {
     return { reply: 'Thank you! A NetOne sales representative will contact you shortly to finalise everything. 😊', collected, complete: true };
@@ -217,7 +229,8 @@ export async function converse(
   collected: CollectedProfile,
   name: string | null
 ): Promise<{ turn: AgentTurn; degraded: boolean }> {
-  const user = `Prospect name (if known): ${name ?? 'Unknown'}
+  const knowledge = await getKnowledgeContext().catch(() => '');
+  const user = `${knowledge ? `KNOWLEDGE BASE:\n${knowledge}\n\n` : ''}Prospect name (if known): ${name ?? 'Unknown'}
 Already collected: ${JSON.stringify(collected)}
 Still missing: ${JSON.stringify(missingFields(collected))}
 
@@ -237,6 +250,7 @@ Write the next reply and return the JSON.`;
         budget: turn.collected.budget ?? collected.budget,
         location: turn.collected.location ?? collected.location,
         employment: turn.collected.employment ?? collected.employment,
+        monthlyIncome: turn.collected.monthlyIncome ?? collected.monthlyIncome,
       };
       const complete = missingFields(merged).length === 0;
       return { turn: { reply: turn.reply, collected: merged, complete }, degraded: false };

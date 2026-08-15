@@ -105,3 +105,30 @@ CREATE TABLE IF NOT EXISTS app_settings (
 -- Configurable lead-scoring output, recomputed on every qualification pass.
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS score INT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS score_breakdown JSONB;
+-- Credit-worthiness read derived from employment type (low/medium/high/ineligible/unknown).
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS credit_risk TEXT;
+
+-- ── Knowledge base: editable product catalog + simulated document ingestion ──
+CREATE TABLE IF NOT EXISTS kb_products (
+  id           SERIAL PRIMARY KEY,
+  name         TEXT        NOT NULL,
+  category     TEXT        NOT NULL DEFAULT 'laptop',
+  price_zmw    NUMERIC,
+  price_note   TEXT,
+  specs        JSONB       NOT NULL DEFAULT '{}'::jsonb,
+  description  TEXT,
+  financing    TEXT,
+  source_url   TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS kb_documents (
+  id           SERIAL PRIMARY KEY,
+  title        TEXT        NOT NULL,
+  doc_type     TEXT        NOT NULL DEFAULT 'note', -- note | url | upload
+  source       TEXT,
+  content      TEXT        NOT NULL,
+  status       TEXT        NOT NULL DEFAULT 'indexed', -- ingesting | indexed | failed
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -28,11 +28,20 @@ export async function setSettings(patch: Partial<AppSettings>): Promise<AppSetti
 
 /** NetOne's configurable lead-qualification criteria — weights, required fields, thresholds. */
 export async function getQualificationRules(): Promise<QualificationRules> {
-  const res = await query<{ value: QualificationRules }>(
+  const res = await query<{ value: Partial<QualificationRules> }>(
     `SELECT value FROM app_settings WHERE key = 'qualification_rules'`
   );
-  if (res.rows[0]) return res.rows[0].value;
-  return DEFAULT_QUALIFICATION_RULES;
+  if (!res.rows[0]) return DEFAULT_QUALIFICATION_RULES;
+  // Merge over defaults so rules saved before a new field (e.g. employmentWeights)
+  // was introduced don't crash the scoring engine with missing keys.
+  return {
+    ...DEFAULT_QUALIFICATION_RULES,
+    ...res.rows[0].value,
+    employmentWeights: {
+      ...DEFAULT_QUALIFICATION_RULES.employmentWeights,
+      ...(res.rows[0].value.employmentWeights ?? {}),
+    },
+  };
 }
 
 export async function setQualificationRules(rules: QualificationRules): Promise<QualificationRules> {

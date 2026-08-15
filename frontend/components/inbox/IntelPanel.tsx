@@ -4,6 +4,7 @@ import { Check, Circle, ExternalLink, X, Clock } from 'lucide-react';
 import type { Conversation, Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { LeadScoreCard } from '../LeadScoreCard';
+import { CreditRiskBadge } from '../CreditRiskBadge';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -21,6 +22,7 @@ const FIELDS: { key: keyof NonNullable<Lead['collected']>; label: string }[] = [
   { key: 'budget', label: 'Budget' },
   { key: 'location', label: 'Location' },
   { key: 'employment', label: 'Employment' },
+  { key: 'monthlyIncome', label: 'Monthly income' },
 ];
 
 export function IntelPanel({ conversation, lead }: { conversation: Conversation | null; lead: Lead | null }) {
@@ -83,6 +85,12 @@ export function IntelPanel({ conversation, lead }: { conversation: Conversation 
             <Row label="Qualification" value={<span className="capitalize">{(lead.qualification_status ?? '—').replace(/_/g, ' ')}</span>} />
             <Row label="Assigned" value={lead.assigned_to ?? '—'} />
           </div>
+
+          {(lead.financing_interest || (lead.credit_risk && lead.credit_risk !== 'unknown')) && (
+            <div className="mt-3 flex justify-center">
+              <CreditRiskBadge risk={lead.credit_risk} />
+            </div>
+          )}
 
           <div className="mt-3">
             <LeadScoreCard score={lead.score} breakdown={lead.score_breakdown} nextAction={lead.next_action} compact />

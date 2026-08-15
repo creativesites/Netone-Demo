@@ -3,21 +3,37 @@
 import { useEffect, useState } from 'react';
 import { RotateCcw, Save, Check, Info } from 'lucide-react';
 import { useRealtimeDoc, apiPut } from '@/lib/realtime';
-import type { QualificationRules, QualificationCriterionRule } from '@/lib/types';
+import { EMPLOYMENT_CATEGORIES, type QualificationRules, type QualificationCriterionRule, type EmploymentCategory } from '@/lib/types';
 
 const DEFAULT_RULES: QualificationRules = {
   criteria: [
-    { key: 'purchaseIntent', label: 'Purchase intent', weight: 30, required: true },
-    { key: 'product', label: 'Product identified', weight: 20, required: true },
-    { key: 'financing', label: 'Financing interest captured', weight: 15, required: false },
+    { key: 'purchaseIntent', label: 'Purchase intent', weight: 25, required: true },
+    { key: 'product', label: 'Product identified', weight: 15, required: true },
+    { key: 'financing', label: 'Financing interest captured', weight: 10, required: false },
     { key: 'location', label: 'Location captured', weight: 10, required: true },
     { key: 'contact', label: 'Contact information', weight: 5, required: true },
-    { key: 'employment', label: 'Employment status', weight: 10, required: true },
-    { key: 'budget', label: 'Budget / income indicated', weight: 10, required: false },
+    { key: 'employment', label: 'Employment / credit risk', weight: 20, required: true },
+    { key: 'monthlyIncome', label: 'Monthly income disclosed', weight: 10, required: false },
+    { key: 'budget', label: 'Budget indicated', weight: 5, required: false },
   ],
   qualifiedThreshold: 70,
   followUpThreshold: 40,
+  employmentWeights: {
+    civil_servant: 100,
+    formally_employed: 90,
+    self_employed: 55,
+    informally_employed: 25,
+    student: 15,
+    unemployed: 0,
+  },
 };
+
+function riskTierFor(weight: number): { label: string; cls: string } {
+  if (weight <= 0) return { label: 'Ineligible', cls: 'text-rose-600' };
+  if (weight < 40) return { label: 'High risk', cls: 'text-orange-600' };
+  if (weight < 75) return { label: 'Medium risk', cls: 'text-amber-600' };
+  return { label: 'Low risk', cls: 'text-emerald-600' };
+}
 
 export default function QualificationRulesPage() {
   const remote = useRealtimeDoc<QualificationRules>(
@@ -33,7 +49,7 @@ export default function QualificationRulesPage() {
 
   useEffect(() => {
     if (remote && !loaded) {
-      setRules(remote);
+      setRules({ ...DEFAULT_RULES, ...remote, employmentWeights: { ...DEFAULT_RULES.employmentWeights, ...remote.employmentWeights } });
       setLoaded(true);
     }
   }, [remote, loaded]);
@@ -42,6 +58,11 @@ export default function QualificationRulesPage() {
 
   function updateCriterion(key: string, patch: Partial<QualificationCriterionRule>) {
     setRules((r) => ({ ...r, criteria: r.criteria.map((c) => (c.key === key ? { ...c, ...patch } : c)) }));
+    setSaved(false);
+  }
+
+  function updateEmploymentWeight(category: EmploymentCategory, weight: number) {
+    setRules((r) => ({ ...r, employmentWeights: { ...r.employmentWeights, [category]: Math.max(0, Math.min(100, weight)) } }));
     setSaved(false);
   }
 
@@ -114,6 +135,48 @@ export default function QualificationRulesPage() {
       </div>
 
       <div className="mt-4 card p-5">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-400">
+          Credit Worthiness — Employment Type Weighting
+        </div>
+        <p className="mb-4 text-[13px] leading-relaxed text-ink-500">
+          Zambia&apos;s market has high informal employment, so NetOne&apos;s financing partners assess
+          repayment risk primarily by employment type — a civil servant&apos;s installment can be deducted at
+          source, so that&apos;s lower risk than income that isn&apos;t formally verifiable. Set each
+          category&apos;s weight to match your partners&apos; actual underwriting policy — it drives both the
+          lead score and the credit-risk badge shown to sales.
+        </p>
+        <div className="space-y-2">
+          {EMPLOYMENT_CATEGORIES.map((cat) => {
+            const weight = rules.employmentWeights[cat.value] ?? 0;
+            const tier = riskTierFor(weight);
+            return (
+              <div key={cat.value} className="flex items-center gap-3 rounded-xl border border-line bg-surface-muted px-3 py-2.5">
+                <span className="flex-1 text-sm text-ink-800">{cat.label}</span>
+                <span className={`w-24 text-right text-[11px] font-semibold ${tier.cls}`}>{tier.label}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={weight}
+                  onChange={(e) => updateEmploymentWeight(cat.value, Number(e.target.value))}
+                  className="w-28 accent-brand-500"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={weight}
+                  onChange={(e) => updateEmploymentWeight(cat.value, Number(e.target.value) || 0)}
+                  className="w-14 rounded-lg border border-line bg-white px-2 py-1 text-right text-sm text-ink-900 outline-none focus:border-brand-500"
+                />
+                <span className="text-[11px] text-ink-400">%</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-4 card p-5">
         <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">Qualification Thresholds</div>
         <div className="grid grid-cols-2 gap-4">
           <label className="block">
@@ -157,6 +220,7 @@ export default function QualificationRulesPage() {
           </div>
           <div className="pl-4">THEN Lead = <span className="text-amber-400">NEEDS FOLLOW-UP</span></div>
           <div>ELSE Lead = <span className="text-rose-400">UNQUALIFIED</span></div>
+          <div className="mt-2 text-ink-400">// Employment weighting is applied inside the "Employment / credit risk" criterion above</div>
         </div>
       </div>
 

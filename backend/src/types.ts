@@ -50,7 +50,11 @@ export interface CollectedProfile {
   financing: string | null;
   budget: string | null;
   location: string | null;
+  // Customer's own words (e.g. "I'm a teacher", "I run my own shop") — the
+  // qualification engine canonicalizes this into a credit-risk category
+  // rather than forcing the conversation into a rigid enum.
   employment: string | null;
+  monthlyIncome: string | null;
 }
 
 export const REQUIRED_FIELDS: (keyof CollectedProfile)[] = [
@@ -60,6 +64,7 @@ export const REQUIRED_FIELDS: (keyof CollectedProfile)[] = [
   'budget',
   'location',
   'employment',
+  'monthlyIncome',
 ];
 
 /** One line item in the configurable lead-scoring breakdown. */
@@ -101,6 +106,7 @@ export interface Lead {
   next_action: string | null;
   score: number | null;
   score_breakdown: ScoreCriterionResult[] | null;
+  credit_risk: 'low' | 'medium' | 'high' | 'ineligible' | 'unknown' | null;
   collected: CollectedProfile;
   profile_complete: boolean;
   created_at: string;

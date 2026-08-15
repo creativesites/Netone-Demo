@@ -4,6 +4,7 @@ import { ExternalLink, Check, X, Clock, PhoneCall } from 'lucide-react';
 import type { Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { LeadScoreCard } from './LeadScoreCard';
+import { CreditRiskBadge } from './CreditRiskBadge';
 
 function qualBadge(q: string | null) {
   switch (q) {
@@ -64,6 +65,15 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
         <Field label="Purchase Intent" value={<span className={`font-semibold capitalize ${intentTone(lead.purchase_intent)}`}>{lead.purchase_intent ?? '—'}</span>} />
         <Field label="Intent" value={<span className="capitalize">{(lead.intent ?? '—').replace(/_/g, ' ')}</span>} />
       </div>
+
+      {(lead.financing_interest || (lead.credit_risk && lead.credit_risk !== 'unknown')) && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-muted p-3">
+          <span className="text-[10px] uppercase tracking-wide text-ink-400">Financing eligibility</span>
+          <CreditRiskBadge risk={lead.credit_risk} />
+          {lead.collected?.employment && <span className="text-xs text-ink-500">“{lead.collected.employment}”</span>}
+          {lead.collected?.monthlyIncome && <span className="text-xs text-ink-400">· income: {lead.collected.monthlyIncome}/mo</span>}
+        </div>
+      )}
 
       <div className="mt-4 rounded-xl border border-line bg-surface-muted p-3">
         <div className="text-[10px] uppercase tracking-wide text-ink-400">AI Summary</div>

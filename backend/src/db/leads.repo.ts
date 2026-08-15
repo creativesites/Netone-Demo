@@ -38,8 +38,8 @@ export async function upsertLead(
     `INSERT INTO leads (
         external_contact_id, channel, source, name, phone, initial_message,
         intent, product, financing_interest, purchase_intent, qualification_status,
-        ai_reasoning, ai_summary, ai_source, assigned_to, next_action, score, score_breakdown, bitrix_status
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'pending')
+        ai_reasoning, ai_summary, ai_source, assigned_to, next_action, score, score_breakdown, credit_risk, bitrix_status
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'pending')
      ON CONFLICT (channel, external_contact_id) DO UPDATE SET
         name = COALESCE(EXCLUDED.name, leads.name),
         phone = COALESCE(EXCLUDED.phone, leads.phone),
@@ -56,6 +56,7 @@ export async function upsertLead(
         next_action = EXCLUDED.next_action,
         score = EXCLUDED.score,
         score_breakdown = EXCLUDED.score_breakdown,
+        credit_risk = EXCLUDED.credit_risk,
         updated_at = now()
      RETURNING *`,
     [
@@ -77,6 +78,7 @@ export async function upsertLead(
       qual.nextAction,
       qual.score,
       JSON.stringify(qual.breakdown),
+      qual.creditRisk,
     ]
   );
   return res.rows[0];
@@ -91,9 +93,10 @@ export async function updateQualification(leadId: number, qual: QualificationRes
         next_action = $4,
         score = $5,
         score_breakdown = $6,
+        credit_risk = $7,
         updated_at = now()
       WHERE id = $1 RETURNING *`,
-    [leadId, qual.qualification, qual.assignedTo, qual.nextAction, qual.score, JSON.stringify(qual.breakdown)]
+    [leadId, qual.qualification, qual.assignedTo, qual.nextAction, qual.score, JSON.stringify(qual.breakdown), qual.creditRisk]
   );
   return res.rows[0];
 }
