@@ -1,26 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, QrCode, Smartphone, Copy, Check, RefreshCw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, QrCode, Smartphone, Copy, Check, RefreshCw, LogOut, AlertTriangle } from 'lucide-react';
+import { useWhatsAppStatus, displayWaNumber as displayNumber, type WaStatus } from '@/lib/useWhatsAppStatus';
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4702';
-
-interface WaStatus {
-  status: 'connected' | 'connecting' | 'disconnected' | string;
-  hasQr?: boolean;
-  pairingCode?: string | null;
-  pairingError?: string | null;
-  pairingElapsedMs?: number | null;
-  method?: 'qr' | 'code';
-  user?: string | null;
-}
-
-function displayNumber(user?: string | null): string | null {
-  if (!user) return null;
-  const digits = user.split(':')[0]?.replace(/\D/g, '') ?? '';
-  if (digits.length < 7) return null;
-  return `+${digits}`;
-}
 
 function tone(status?: string) {
   if (status === 'connected') return { dot: 'bg-emerald-500', text: 'text-emerald-600', label: 'Connected', pulse: true };
@@ -29,23 +13,8 @@ function tone(status?: string) {
 }
 
 export function WhatsAppConnect() {
-  const [status, setStatus] = useState<WaStatus>({ status: 'disconnected' });
+  const { status, refresh: poll } = useWhatsAppStatus();
   const [open, setOpen] = useState(false);
-
-  const poll = useCallback(async () => {
-    try {
-      const r = await fetch(`${BACKEND}/api/whatsapp/status`, { cache: 'no-store' });
-      if (r.ok) setStatus(await r.json());
-    } catch {
-      setStatus({ status: 'disconnected' });
-    }
-  }, []);
-
-  useEffect(() => {
-    poll();
-    const iv = setInterval(poll, 3000);
-    return () => clearInterval(iv);
-  }, [poll]);
 
   // Auto-close the modal once linked.
   useEffect(() => {
@@ -119,6 +88,19 @@ function ConnectModal({
   }, [tab, connected]);
 
   const [requestedPhone, setRequestedPhone] = useState('');
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function disconnect() {
+    setLoggingOut(true);
+    try {
+      await fetch(`${BACKEND}/api/whatsapp/logout`, { method: 'POST' });
+      setConfirmingLogout(false);
+      onChanged();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   async function requestCode() {
     const digits = phone.replace(/\D/g, '');
@@ -170,12 +152,46 @@ function ConnectModal({
         </div>
 
         {connected ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+          <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white">
               <Check size={28} />
             </span>
             <div className="text-base font-semibold text-ink-900">WhatsApp linked</div>
             <div className="text-sm text-ink-500">{displayNumber(status.user) ?? 'Device connected'}</div>
+
+            {!confirmingLogout ? (
+              <button
+                onClick={() => setConfirmingLogout(true)}
+                className="mt-3 flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-xs font-medium text-ink-500 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+              >
+                <LogOut size={13} /> Disconnect this number
+              </button>
+            ) : (
+              <div className="mt-3 w-full rounded-xl border border-rose-200 bg-rose-50 p-3 text-left">
+                <div className="flex items-start gap-2 text-[12px] text-rose-700">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    This unlinks the current number and clears the session. Anyone with this dashboard can
+                    then connect their own WhatsApp to run the demo.
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    onClick={() => setConfirmingLogout(false)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-ink-500 hover:bg-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={disconnect}
+                    disabled={loggingOut}
+                    className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {loggingOut ? 'Disconnecting…' : 'Yes, disconnect'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <>

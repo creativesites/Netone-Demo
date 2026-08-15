@@ -41,7 +41,7 @@ const stages: { label: string; sub: string; Icon: LucideIcon; desc: string }[] =
 
 export function IntegrationFlow({ activeIndex = -1 }: { activeIndex?: number }) {
   return (
-    <div className="card p-5">
+    <div className="card p-5" data-tour="integration-flow">
       <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">
         Integration Flow
       </div>

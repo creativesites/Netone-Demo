@@ -36,7 +36,7 @@ export function ArchitectureDiagram() {
   }
 
   return (
-    <div className="card overflow-hidden p-0">
+    <div className="card overflow-hidden p-0" data-tour="architecture-diagram">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-ink-400">Architecture</div>

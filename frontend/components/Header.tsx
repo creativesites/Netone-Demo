@@ -22,7 +22,9 @@ export function Header({
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <WhatsAppConnect />
+        <div data-tour="wa-connect">
+          <WhatsAppConnect />
+        </div>
         <StatusPill
           label="Lead Engine"
           value={connected ? 'Online' : 'Reconnecting'}
