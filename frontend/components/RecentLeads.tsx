@@ -1,6 +1,7 @@
 'use client';
 
 import type { Lead } from '@/lib/types';
+import { bitrixLeadUrl } from '@/lib/bitrix';
 
 function dot(q: string | null) {
   if (q === 'qualified') return 'bg-emerald-500';
@@ -30,7 +31,22 @@ export function RecentLeads({ leads }: { leads: Lead[] }) {
               </div>
               <div className="text-right">
                 {l.bitrix_lead_id ? (
-                  <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-mono text-violet-700">#{l.bitrix_lead_id}</span>
+                  (() => {
+                    const url = bitrixLeadUrl(l.bitrix_lead_id);
+                    return url ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-mono text-violet-700 hover:bg-violet-100"
+                      >
+                        #{l.bitrix_lead_id}
+                      </a>
+                    ) : (
+                      <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-mono text-violet-700">#{l.bitrix_lead_id}</span>
+                    );
+                  })()
                 ) : (
                   <span className="text-[10px] text-ink-400">—</span>
                 )}

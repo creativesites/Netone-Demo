@@ -1,6 +1,8 @@
 'use client';
 
+import { ExternalLink } from 'lucide-react';
 import type { Lead } from '@/lib/types';
+import { bitrixLeadUrl } from '@/lib/bitrix';
 
 function qualBadge(q: string | null) {
   switch (q) {
@@ -41,6 +43,7 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
 
   const q = qualBadge(lead.qualification_status);
   const bitrixOk = lead.bitrix_status === 'synced';
+  const bitrixUrl = lead.bitrix_lead_id ? bitrixLeadUrl(lead.bitrix_lead_id) : null;
 
   return (
     <div className="card p-5">
@@ -78,9 +81,18 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
             <span className={`text-sm font-semibold ${bitrixOk ? 'text-emerald-600' : lead.bitrix_status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>
               {bitrixOk ? '✓ Synced' : lead.bitrix_status === 'failed' ? '✗ Failed' : '⏳ Pending'}
             </span>
-            {lead.bitrix_lead_id && (
+            {lead.bitrix_lead_id && bitrixUrl ? (
+              <a
+                href={bitrixUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 text-[11px] font-mono text-violet-700 hover:bg-violet-100"
+              >
+                Lead #{lead.bitrix_lead_id} <ExternalLink size={10} />
+              </a>
+            ) : lead.bitrix_lead_id ? (
               <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[11px] font-mono text-violet-700">Lead #{lead.bitrix_lead_id}</span>
-            )}
+            ) : null}
           </div>
         </div>
         <div className="rounded-xl border border-line bg-white p-3">

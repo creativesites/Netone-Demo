@@ -134,6 +134,7 @@ Copy `.env.example` → `.env` and fill these. Secrets live only in `.env`
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
 | `CLERK_SECRET_KEY` | Clerk secret key (server-only) |
 | `DISABLE_AUTH` | optional; `true` opens the console without Clerk sign-in |
+| `NEXT_PUBLIC_BITRIX24_PORTAL_URL` | optional; e.g. `https://<portal>.bitrix24.com` — makes lead badges clickable links into the real CRM |
 
 ---
 

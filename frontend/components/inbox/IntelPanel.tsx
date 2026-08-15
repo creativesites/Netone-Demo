@@ -1,7 +1,8 @@
 'use client';
 
-import { Check, Circle } from 'lucide-react';
+import { Check, Circle, ExternalLink } from 'lucide-react';
 import type { Conversation, Lead } from '@/lib/types';
+import { bitrixLeadUrl } from '@/lib/bitrix';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -87,7 +88,21 @@ export function IntelPanel({ conversation, lead }: { conversation: Conversation 
               <span className={`text-xs font-semibold ${lead.bitrix_status === 'synced' ? 'text-emerald-600' : lead.bitrix_status === 'failed' ? 'text-rose-600' : 'text-amber-600'}`}>
                 {lead.bitrix_status === 'synced' ? '✓ Synced' : lead.bitrix_status === 'failed' ? '✗ Failed' : '⏳ Pending'}
               </span>
-              {lead.bitrix_lead_id && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[11px] text-violet-700">#{lead.bitrix_lead_id}</span>}
+              {lead.bitrix_lead_id && (() => {
+                const url = bitrixLeadUrl(lead.bitrix_lead_id);
+                return url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[11px] text-violet-700 hover:bg-violet-100"
+                  >
+                    #{lead.bitrix_lead_id} <ExternalLink size={9} />
+                  </a>
+                ) : (
+                  <span className="rounded bg-violet-50 px-1.5 py-0.5 font-mono text-[11px] text-violet-700">#{lead.bitrix_lead_id}</span>
+                );
+              })()}
             </div>
           </div>
 

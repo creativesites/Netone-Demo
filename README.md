@@ -123,6 +123,7 @@ See [`.env.example`](./.env.example). Highlights:
 | `DEEPSEEK_API_KEY` / `GEMINI_API_KEY` | AI credentials; if both blank → deterministic fallback |
 | `WEBHOOK_SHARED_SECRET` | Shared secret the WhatsApp service sends to the backend webhook |
 | `NEXT_PUBLIC_BACKEND_URL` | Browser-reachable backend URL for SSE/REST |
+| `NEXT_PUBLIC_BITRIX24_PORTAL_URL` | Portal base URL (optional) — turns lead badges into "open in CRM" links |
 
 **Secrets never get committed** — `.env`, the WhatsApp `session/` directory and
 build artifacts are all git-ignored.
