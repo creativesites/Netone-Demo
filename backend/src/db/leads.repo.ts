@@ -45,7 +45,7 @@ export async function upsertLead(
         phone = COALESCE(EXCLUDED.phone, leads.phone),
         initial_message = EXCLUDED.initial_message,
         intent = EXCLUDED.intent,
-        product = EXCLUDED.product,
+        product = COALESCE(EXCLUDED.product, leads.product),
         financing_interest = EXCLUDED.financing_interest,
         purchase_intent = EXCLUDED.purchase_intent,
         qualification_status = EXCLUDED.qualification_status,
@@ -124,10 +124,16 @@ export async function updateCollected(
   collected: import('../types.js').CollectedProfile,
   complete: boolean
 ): Promise<Lead> {
+  // The conversational agent's collected.product is the authoritative,
+  // deterministic read (built up over the whole conversation, carried
+  // forward turn to turn) — it should always win over the top-level
+  // `product` column, which the gatekeeper otherwise sets from a single
+  // isolated message and can leave stale or null. Never let it regress:
+  // only overwrite when the freshly collected value is non-null.
   const res = await query<Lead>(
-    `UPDATE leads SET collected = $2, profile_complete = $3, updated_at = now()
+    `UPDATE leads SET collected = $2, profile_complete = $3, product = COALESCE($4, product), updated_at = now()
       WHERE id = $1 RETURNING *`,
-    [leadId, JSON.stringify(collected), complete]
+    [leadId, JSON.stringify(collected), complete, collected.product]
   );
   return res.rows[0];
 }

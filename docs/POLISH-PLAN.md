@@ -267,3 +267,64 @@ not a score/status field). Candidate for a later Phase 3/5 refinement.
 Test artifacts (`scratch-test-hero-journey.ts`, `scratch-fake-services.mjs`,
 `scratch-test-phase3.ts`, test Postgres role/db) removed after
 verification — nothing test-only committed.
+
+### Phase 3.1 — Product tracking on the lead card (✅ done, verified live, 2026-08-15)
+User-reported: the product doesn't show on the lead card. Root cause was
+two independent bugs in how the "product" field flows from chat to the
+dashboard, both in the same family as the Phase 3 sticky-intent bug:
+
+1. **The lead card's `product` column got clobbered on almost every
+   turn.** `leads.product` (what `RecentLeads`/`LeadDetail` actually
+   render) was written on every message from `analysis.product` — the AI
+   gatekeeper's read of *only that single message*, in isolation. Since
+   most turns don't literally repeat the product name (e.g. "8600",
+   "I'm a police officer"), `analysis.product` was `null` on most turns,
+   and `leads.repo.ts::upsertLead` unconditionally overwrote the column
+   with that `null` — so a product picked up on message 1 was gone by
+   message 2. Fixed with the same COALESCE pattern already used for
+   `name`/`phone`: `product = COALESCE(EXCLUDED.product, leads.product)`,
+   plus a sticky merge in `lead.service.ts` (`analysis.product =
+   rawAnalysis.product ?? existing.product`) so the "product identified"
+   scoring criterion stopped wobbling the score down mid-conversation too.
+2. **The generic gatekeeper guess was blocking real product detection.**
+   `collected.product` (the conversational agent's deterministic,
+   KB-grounded field) was seeded at lead creation with the gatekeeper's
+   generic read (e.g. `"laptop"`). Since that made `missingFields()`
+   think "product" was already answered, Nia never felt obligated to
+   suggest/confirm a specific model — the field stayed stuck on `"laptop"`
+   forever instead of narrowing to e.g. `"NEO Lite 14a"`. Fixed by leaving
+   `collected.product` null at seed time (the generic value still reaches
+   the card immediately via the top-level column fix above) so the
+   conversational agent stays responsible for landing on a real,
+   customer-confirmed model.
+3. **Broadened what counts as a real product confirmation.** The Phase 3
+   rule required the customer to literally name/confirm a product before
+   `collected.product` could be written — too strict for how real
+   customers talk (they say "yes", "let's do financing for that", or just
+   keep answering follow-up questions about the suggested product, not
+   "yes I'll take the NEO Lite 14a"). `AGENT_PROMPT` now recognizes
+   continued engagement with a *specifically-named* suggestion (direct
+   affirmatives, asking about price/terms for it, answering the next
+   question about it) as a real selection, while still refusing to invent
+   a product from budget alone with zero reaction, or from a
+   still-comparing / explicitly-declined customer.
+
+**Verification** (same real-Postgres + fake-Bitrix/WhatsApp + live DeepSeek
+harness): re-ran the Winston transcript from Phase 2 through the fixed
+pipeline. `leads.product` stayed populated every turn ("laptop" from
+message 1, no drops to null); `collected.product` correctly stayed null
+until message 4 ("Yes let's do financing... I'm in kabwe" — his real
+confirmation of the previously-suggested NEO Lite 14a), then held
+"NEO Lite 14a" through the rest of the conversation. Score climbed
+monotonically (45→50→60→70→90→100) instead of wobbling down. Bitrix
+`COMMENTS` correctly showed the "Collected profile: Product" line
+transition from "—" to "NEO Lite 14a" and never revert; one `crm.lead.add`
++ eleven `crm.lead.update` calls, no duplicates; final `STATUS_ID`
+`IN_PROCESS`. A second "wanderer" persona (asks about laptops generally,
+never reacts to or accepts a specific suggestion) confirmed the broadened
+confirmation rule doesn't over-fire: `collected.product` correctly stayed
+null the whole conversation while the card still showed the generic
+"laptop" interest.
+
+Test artifacts removed after verification, test Postgres role/db dropped,
+service stopped — nothing test-only committed.

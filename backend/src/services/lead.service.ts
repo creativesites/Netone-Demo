@@ -111,15 +111,18 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
     // ── 3. AI GATEKEEPER ─────────────────────────────────
     const { analysis: rawAnalysis, degraded } = await classifyLead(event.message, event.name);
 
-    // Purchase intent and financing interest must never regress within an
-    // existing lead's conversation. classifyLead() reads only THIS message
-    // with zero history, so a neutral reply (e.g. declining to share a
-    // location) would otherwise read as low-intent and silently overwrite
-    // real interest already shown earlier — tanking the score and flipping
-    // the real Bitrix STATUS_ID to JUNK on an actively-qualifying lead.
+    // Purchase intent, financing interest, and product must never regress
+    // within an existing lead's conversation. classifyLead() reads only THIS
+    // message with zero history, so a neutral reply (e.g. declining to share
+    // a location, or "8600" with no product word in it) would otherwise read
+    // as low-intent / product-less and silently overwrite real signal shown
+    // earlier — tanking the score (and, for product, the "product identified"
+    // criterion) and flipping the real Bitrix STATUS_ID to JUNK on an
+    // actively-qualifying lead.
     const analysis: LeadAnalysis = existing
       ? {
           ...rawAnalysis,
+          product: rawAnalysis.product ?? existing.product,
           purchaseIntent: maxPurchaseIntent(existing.purchase_intent, rawAnalysis.purchaseIntent),
           financingInterest: existing.financing_interest === true || rawAnalysis.financingInterest,
         }
@@ -174,11 +177,20 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
     // Score against what we already know: the existing collected profile, or a
     // fresh seed built from this first message, so the score is never computed
     // against empty data for a brand-new lead.
+    // NOTE: collected.product is deliberately left null here even when the
+    // gatekeeper found a generic mention (e.g. "laptop"). analysis.product is
+    // a loose single-message read, not a confirmed specific product — seeding
+    // it into collected.product would make missingFields() think "product"
+    // is already answered, so the conversational agent would never bother
+    // suggesting/confirming an actual model. The generic value still reaches
+    // the lead card immediately via the top-level `product` column (set
+    // below from analysis.product); collected.product stays the source of
+    // truth for a real, customer-confirmed selection.
     const seedCollected: CollectedProfile = existing
       ? existing.collected
       : {
           name: event.name ?? null,
-          product: analysis.product ?? null,
+          product: null,
           financing: analysis.financingInterest ? 'interested' : null,
           budget: null,
           location: null,
