@@ -6,6 +6,7 @@ import type { IntegrationStatus, Lead, Metrics } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { MetricsRow } from '@/components/MetricsRow';
 import { IntegrationFlow } from '@/components/IntegrationFlow';
+import { OmnichannelArchitecture } from '@/components/OmnichannelArchitecture';
 import { LiveActivity } from '@/components/LiveActivity';
 import { LeadDetail } from '@/components/LeadDetail';
 import { Timeline } from '@/components/Timeline';
@@ -48,11 +49,16 @@ export default function DashboardPage() {
       <Header status={status} connected={connected} />
 
       <section className="mt-6">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">Today&apos;s Activity</h2>
         <MetricsRow metrics={metrics} />
       </section>
 
       <section className="mt-4">
         <IntegrationFlow activeIndex={activeIndex} />
+      </section>
+
+      <section className="mt-4">
+        <OmnichannelArchitecture />
       </section>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
