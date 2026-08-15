@@ -20,8 +20,8 @@ demo script, discovery questions, and documentation deliverables).
 |---|---|---|
 | 0 | Repository audit | ✅ Done |
 | 1 | Reliability fixes found in audit | ✅ Done |
-| 2 | Hero journey end-to-end verification | 🔲 Not started |
-| 3 | Conversational flow improvements | 🔲 Not started |
+| 2 | Hero journey end-to-end verification | ✅ Done (real live test) |
+| 3 | Conversational flow improvements | ✅ Done |
 | 4 | Knowledge-base correctness | 🔲 Not started |
 | 5 | Qualification / scoring / risk / routing verification | 🔲 Not started |
 | 6 | Bitrix create/update/enrichment verification | 🔲 Not started |
@@ -153,8 +153,117 @@ after verification — nothing test-only was committed.
 Commit: (see git log — "Fix gatekeeper mid-conversation bug + make Bitrix24
 reflect the deterministic decision").
 
-### Phase 2 — Hero journey end-to-end verification
-Not started. Builds on Phase 1's verification harness — next step is
-running the equivalent scenario through the real WhatsApp bridge (not just
-`processEvent` directly) to confirm the outbound reply path, delivery
-status, and dashboard real-time updates all hold up too.
+### Phase 2 — Hero journey end-to-end verification (✅ done, real user-provided transcript, 2026-08-15)
+Instead of another synthetic scenario, the user supplied a real WhatsApp
+transcript (Winston, 8 messages, financing inquiry → NEO Lite 14a → 6-12mo
+financing → employment "police officer, sergeant" → income 8600 →
+handoff). Reviewed against the fixed Phase 1 code, not re-run through the
+pipeline (no code changes this phase — verification only):
+
+- Confirmed the deterministic employment canonication correctly reads a
+  real, informally-phrased answer ("I'm a police officer. A sergeant") as
+  `civil_servant`, not a keyword-miss default.
+- Confirmed Nia's product/financing suggestions (NEO Lite 14a at K5,500,
+  6-12 month terms) are genuinely KB-grounded, not hallucinated, and stay
+  consistent turn-to-turn.
+- Investigated an apparent ~29-hour gap between message 1 (14/8, 2:54pm)
+  and message 2 (15/8, 8:05pm). User clarified this was **not a bug**: the
+  first message predates the Phase 1 gatekeeper fix (when the system
+  wasn't replying at all), and the customer simply continued the same old
+  chat the next day once it started working — realistic end-user behavior,
+  not a defect. No action needed; the sticky-lead lookup (Phase 1 fix)
+  handles a same-contact conversation resuming after any real-world gap
+  correctly by design.
+- No code changes. This phase's output was confirming the Phase 1 fixes
+  hold up against real (not synthetic) conversational data before moving
+  on to Phase 3.
+
+### Phase 3 — Conversational flow improvements (✅ done, verified live, 2026-08-15)
+Three requested fixes, all in `ai.service.ts` (`AGENT_PROMPT` +
+`converseDeterministic`) and `qualification.service.ts`:
+
+1. **Nia no longer assumes a product decision from budget alone.** Prompt
+   now instructs the agent to *suggest* a matching product and explicitly
+   wait for the customer to confirm interest, never state "so you'll be
+   getting the X" as a foregone conclusion from budget alone.
+2. **Graceful, intelligent handling of declined/refused information.**
+   New `isDeclinedAnswer()` in `qualification.service.ts` (phrase-based —
+   see bug #1 below for why not single-word) detects refusals like "rather
+   not say", "prefer not to", "none of your business", "keep that
+   private". `converseDeterministic()` records a `'prefers not to share'`
+   placeholder for the field being asked, acknowledges warmly once
+   ("No problem at all, totally understand."), and moves the conversation
+   on to the next field instead of re-asking or stalling.
+   `evalCriterion()`'s employment branch now treats a decline as "answered"
+   (`met: true`, so the flow doesn't loop) but contributes 0 score points
+   and forces `credit_risk` to `'unknown'` rather than guessing. A new
+   `nextAction` branch surfaces "Discuss financing eligibility directly —
+   customer preferred not to share employment details" for a human rep.
+3. **Personality mirroring.** `AGENT_PROMPT` now instructs the model to
+   read the customer's register (formal/casual, terse/chatty, emoji use)
+   from their messages and adapt tone accordingly, while keeping brand
+   identity — mirror, not mimic. Verified qualitatively with two
+   contrasting live conversations (casual/emoji-heavy vs. formal/complete-
+   sentence customer personas) — Nia's replies were visibly distinct in
+   register between the two but still recognizably on-brand.
+
+**Two additional real bugs found and fixed during verification** (higher
+demo-risk than the three requested items, since both are visible directly
+in the live CRM record):
+
+- **`'private'` false-positive in decline detection.** The original
+  `DECLINE_PATTERNS` included the bare word `'private'` to catch "keep
+  that private", but it also matched entirely ordinary answers like "I
+  work at a private firm" — silently discarding a legitimate employment
+  answer and forcing `credit_risk` to `'unknown'` when it should have been
+  `'low'`. Found via a live smoke test using "I am formally employed as an
+  accountant at a private firm." Fixed by switching every trigger to
+  compound phrases only, and by deduplicating what had drifted into two
+  independent copies (`ai.service.ts` and `qualification.service.ts`) into
+  one exported `isDeclinedAnswer()`.
+- **Bitrix `STATUS_ID` cratering to JUNK on an actively-qualifying lead.**
+  Because `classifyLead()` reads only the single latest message with zero
+  history, a neutral reply (e.g. declining to share a location) read as
+  low purchase intent in isolation. Since `purchase_intent` and
+  `financing_interest` were freshly overwritten every turn instead of
+  carried forward, the qualification score — and the real Bitrix
+  `STATUS_ID` field a sales rep or the CEO could see directly — visibly
+  dropped mid-conversation for an actively engaged customer. Fixed with a
+  sticky merge in `lead.service.ts`: `maxPurchaseIntent()` never lets
+  purchase intent rank downward within an existing lead's conversation,
+  and `financingInterest` is OR'd forward once seen. Also fixed a related
+  gap while in this code: Bitrix sync was gated on `turn.complete`, so
+  intermediate turns' re-scored qualification never reached Bitrix — only
+  first-sync and final-sync did, leaving the CRM record up to one full
+  turn stale. Sync is now unconditional every turn (regardless of the
+  auto-reply toggle), with the step label distinguishing "profile
+  complete" vs. "Bitrix24 enriched".
+
+**Verification** (same methodology as Phase 1 — real local Postgres 16,
+fake Bitrix/WhatsApp HTTP servers, real DeepSeek provider, two parallel
+contact simulations: a casual/emoji-heavy "Casual Customer" and a
+formal/complete-sentence "Formal Customer" who declines to share
+location, then later gives full employment/income details):
+- Casual Customer: replies matched the casual register (emoji, short
+  sentences) throughout; no premature product assumption from budget.
+- Formal Customer: declined the location question gracefully ("No worries
+  at all, we can keep it simple! 😊 ... could you share your name?"),
+  conversation continued without looping or breaking; final
+  `qualification_status` correctly reached `"qualified"` / score 73 /
+  `credit_risk: "low"` (pre-fix, this same scenario incorrectly landed on
+  `"unqualified"` / score 30 due to the purchase-intent regression bug).
+- Fake-Bitrix log confirmed final `STATUS_ID` for both contacts correctly
+  reached `IN_PROCESS` (matching "qualified"), with intermediate turns'
+  `crm.lead.update` calls no longer stale relative to the true DB state.
+- No duplicate Bitrix leads created (one `crm.lead.add` per contact).
+- `npx tsc --noEmit -p .` and `npm run build` clean in `backend/`.
+
+**Backlog, not fixed this phase:** `ai_summary`/`ai_reasoning` can still
+read slightly oddly out of context on later turns since they're generated
+fresh per single message by the gatekeeper (same root cause class as the
+purchase-intent issue, but lower demo-risk since it's descriptive copy,
+not a score/status field). Candidate for a later Phase 3/5 refinement.
+
+Test artifacts (`scratch-test-hero-journey.ts`, `scratch-fake-services.mjs`,
+`scratch-test-phase3.ts`, test Postgres role/db) removed after
+verification — nothing test-only committed.

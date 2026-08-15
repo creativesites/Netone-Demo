@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { bus } from '../events/bus.js';
 import { logger } from '../logger.js';
 import { config } from '../config.js';
-import type { CollectedProfile, NormalizedLeadEvent, PipelineStep, Lead } from '../types.js';
+import type { CollectedProfile, NormalizedLeadEvent, PipelineStep, Lead, LeadAnalysis, PurchaseIntent } from '../types.js';
 import { classifyLead, converse } from './ai.service.js';
 import { qualify } from './qualification.service.js';
 import { bitrix24Adapter } from '../adapters/crm/bitrix24.adapter.js';
@@ -109,7 +109,21 @@ export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
     const existing = await findLead(event.channel, event.externalContactId);
 
     // ── 3. AI GATEKEEPER ─────────────────────────────────
-    const { analysis, degraded } = await classifyLead(event.message, event.name);
+    const { analysis: rawAnalysis, degraded } = await classifyLead(event.message, event.name);
+
+    // Purchase intent and financing interest must never regress within an
+    // existing lead's conversation. classifyLead() reads only THIS message
+    // with zero history, so a neutral reply (e.g. declining to share a
+    // location) would otherwise read as low-intent and silently overwrite
+    // real interest already shown earlier — tanking the score and flipping
+    // the real Bitrix STATUS_ID to JUNK on an actively-qualifying lead.
+    const analysis: LeadAnalysis = existing
+      ? {
+          ...rawAnalysis,
+          purchaseIntent: maxPurchaseIntent(existing.purchase_intent, rawAnalysis.purchaseIntent),
+          financingInterest: existing.financing_interest === true || rawAnalysis.financingInterest,
+        }
+      : rawAnalysis;
 
     if (!analysis.isLead && !existing) {
       await updateConversationMeta(conv.id, {
@@ -294,8 +308,28 @@ async function runConversationalAgent(
   );
   await mirrorLead(updatedLead as unknown as Record<string, unknown>);
 
+  // Keep Bitrix in sync with the freshest qualification/profile after EVERY
+  // turn, not just once the whole profile is complete — otherwise Bitrix
+  // lags a full turn behind what the dashboard already shows (a customer's
+  // 2nd-to-last message could leave Bitrix on a stale, lower score/status
+  // until the conversation fully wraps up). Runs regardless of the
+  // auto-reply toggle: the CRM record should stay accurate even if we
+  // chose not to also message the customer this turn.
+  if (bitrix24Adapter.isConfigured() && updatedLead.bitrix_lead_id) {
+    const ok = await bitrix24Adapter.updateLead(updatedLead.bitrix_lead_id, updatedLead, analysis);
+    await step(
+      correlationId,
+      turn.complete ? 'profile_complete' : 'bitrix_enriched',
+      turn.complete ? 'Lead profile complete' : 'Bitrix24 lead enriched',
+      ok ? 'ok' : 'info',
+      turn.complete ? 'all details collected · Bitrix24 enriched' : `${qual.score}/100 · Bitrix24 updated`,
+      lead.id
+    );
+  }
+
   if (!settings.autoReplyEnabled) {
     await step(correlationId, 'auto_reply_skipped', 'Auto-reply off — reply not sent', 'info', 'toggle enabled in dashboard', lead.id);
+    await emitLead(lead.id, correlationId, updatedLead);
     return;
   }
 
@@ -316,23 +350,18 @@ async function runConversationalAgent(
     lead.id
   );
 
-  // Once every detail is captured, enrich the Bitrix lead with the full profile.
-  if (turn.complete && bitrix24Adapter.isConfigured() && updatedLead.bitrix_lead_id) {
-    const ok = await bitrix24Adapter.updateLead(updatedLead.bitrix_lead_id, updatedLead, analysis);
-    await step(
-      correlationId,
-      'profile_complete',
-      'Lead profile complete',
-      ok ? 'ok' : 'info',
-      'all details collected · Bitrix24 enriched',
-      lead.id
-    );
-    await mirrorLead(updatedLead as unknown as Record<string, unknown>);
-  }
   await emitLead(lead.id, correlationId, updatedLead);
 }
 
 // ── helpers ────────────────────────────────────────────────
+const INTENT_RANK: Record<PurchaseIntent, number> = { low: 0, medium: 1, high: 2 };
+
+/** Never let a fresh single-message read walk purchase intent back down. */
+function maxPurchaseIntent(existing: PurchaseIntent | null, fresh: PurchaseIntent): PurchaseIntent {
+  if (!existing) return fresh;
+  return INTENT_RANK[existing] >= INTENT_RANK[fresh] ? existing : fresh;
+}
+
 function mkStep(key: string, label: string, status: PipelineStep['status'], detail?: string): PipelineStep {
   return { key, label, status, detail, at: new Date().toISOString() };
 }

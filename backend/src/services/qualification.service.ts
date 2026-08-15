@@ -67,8 +67,41 @@ const EMPLOYMENT_KEYWORDS: [EmploymentCategory, string[]][] = [
   ['formally_employed', ['employed', 'company', 'work at', 'i work for', 'employee', 'salaried', 'job at', 'corporate', 'firm']],
 ];
 
-export function canonicalizeEmployment(raw: string | null): EmploymentCategory | null {
+// A customer is allowed to decline this question. Recognizing that
+// explicitly (rather than falling through to the generic "informally
+// employed" guess) matters because that guess carries real weight in the
+// credit-risk read — silently mis-categorizing a declined answer would be
+// both inaccurate and unfair to the customer.
+// Deliberately compound phrases, not bare words — a bare "private" would
+// false-positive on completely normal answers like "I work at a private
+// firm" or "private school teacher", silently discarding a real answer.
+const DECLINE_PATTERNS = [
+  'rather not',
+  'prefer not',
+  'prefers not',
+  "don't want to",
+  'not comfortable',
+  'none of your business',
+  "won't say",
+  'no comment',
+  'keep that private',
+  "that's private",
+  'personal question',
+  'not share that',
+  'not going to share',
+  'skip that',
+  'skip this',
+];
+
+export function isDeclinedAnswer(raw: string | null): boolean {
+  if (!raw) return false;
+  const t = raw.toLowerCase();
+  return DECLINE_PATTERNS.some((p) => t.includes(p));
+}
+
+export function canonicalizeEmployment(raw: string | null): EmploymentCategory | 'declined' | null {
   if (!raw) return null;
+  if (isDeclinedAnswer(raw)) return 'declined';
   const t = raw.toLowerCase();
   for (const [category, words] of EMPLOYMENT_KEYWORDS) {
     if (words.some((w) => t.includes(w))) return category;
@@ -80,7 +113,7 @@ export type CreditRisk = 'low' | 'medium' | 'high' | 'ineligible' | 'unknown';
 
 export function creditRiskTier(raw: string | null, weights: Record<EmploymentCategory, number>): CreditRisk {
   const category = canonicalizeEmployment(raw);
-  if (!category) return 'unknown';
+  if (!category || category === 'declined') return 'unknown';
   const w = weights[category] ?? 0;
   if (w <= 0) return 'ineligible';
   if (w < 40) return 'high';
@@ -160,7 +193,10 @@ function evalCriterion(
       break;
     case 'employment': {
       const category = canonicalizeEmployment(collected.employment);
-      fraction = category ? (employmentWeights[category] ?? 0) / 100 : 0;
+      // Declined: we got an answer (met), but no usable risk signal (0 points) —
+      // never silently treated as "informally employed" just because they
+      // chose not to say.
+      fraction = category && category !== 'declined' ? (employmentWeights[category] ?? 0) / 100 : 0;
       met = category !== null;
       break;
     }
@@ -215,6 +251,8 @@ export function qualify(
     nextAction = 'Discuss cash purchase or a lower-cost model — financing unlikely to be approved';
   } else if (wantsFinancing && risk === 'high') {
     nextAction = 'Verify income documents before submitting to the financing partner (higher credit risk)';
+  } else if (wantsFinancing && risk === 'unknown' && isDeclinedAnswer(collected.employment)) {
+    nextAction = 'Discuss financing eligibility directly — customer preferred not to share employment details';
   } else if (qualification === 'qualified') {
     nextAction = 'Call customer to close the sale';
   } else if (qualification === 'needs_follow_up') {

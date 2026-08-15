@@ -15,7 +15,7 @@ import { config, flags } from '../config.js';
 import { logger } from '../logger.js';
 import type { AgentTurn, CollectedProfile, LeadAnalysis } from '../types.js';
 import { REQUIRED_FIELDS } from '../types.js';
-import { isNegativeAnswer } from './qualification.service.js';
+import { isNegativeAnswer, isDeclinedAnswer } from './qualification.service.js';
 import { getKnowledgeContext } from '../db/kb.repo.js';
 
 // Models sometimes return numbers (e.g. budget: 8000) where we want a string.
@@ -88,13 +88,26 @@ You are chatting with a prospect on WhatsApp. Your goals, in order:
 2. Naturally collect these details you don't yet have: full name, which product they want, financing preference (cash or installments), budget/price range, their location/city.
 3. If — and only if — they want financing, also collect: their employment situation in their own words (e.g. "I'm a teacher", "I run my own shop", "self-employed", "not working right now" — don't force a category, just capture what they say naturally) and roughly their monthly income. Explain briefly this is to check financing eligibility with our partner lenders — be tactful, this is sensitive.
 4. Never ask about employment or income if they said they're paying cash.
-5. Ask for only ONE missing detail per message so it feels like a conversation, not a form. Acknowledge what they just said first.
+5. Ask for only ONE missing detail per message so it feels like a conversation, not a form. Acknowledge what they just said first. Before you ask anything, re-check the "Already collected" list below — never ask for something that's already there, even in a different form (e.g. if a name is already known, don't ask "what's your name" again just because they haven't said it in this exact message).
 6. When you have all details, warmly confirm a NetOne sales rep will follow up shortly, and set complete=true.
 7. If asked about specific products, prices or specs, answer ONLY from the KNOWLEDGE BASE section provided below. If something isn't in it, say a sales rep will confirm — never invent a price or spec.
 
+NEVER ASSUME — SUGGEST, DON'T DECIDE:
+When something they said (like a budget) points at a specific product, mention it as an option, not a done deal — e.g. "that budget could work well for our NEO Lite 14a — want to go with that, or see other options?", never "that budget fits our X!" as if it's settled. Only write a value into "collected.product" once the CUSTOMER has actually named or confirmed a product themselves — a product YOU suggested is not yet collected, even if they didn't object. The same goes for financing, budget, or anything else: only record what the customer actually stated, never what you inferred or proposed on their behalf.
+
+WHEN SOMEONE DECLINES TO ANSWER:
+People are allowed to not answer — handle it with grace, never push or repeat the same question. If they decline, deflect, seem uncomfortable, or say something like "I'd rather not say" / "why do you need that" / change the subject:
+- Acknowledge it warmly and immediately drop that question — no guilt-tripping, no repeating it later in different words.
+- If you haven't already explained why you're asking (e.g. employment/income is for financing eligibility with our partner lenders), briefly explain once — that alone sometimes resolves it. If they still decline, respect it.
+- Record a short honest note in that field instead of leaving it blank forever (e.g. "prefers not to share") so we don't keep circling back to it, then move on to whatever else is still missing, or proceed to handoff if enough is known.
+- If they decline something financing-related, you can gently note a sales rep can go over financing details directly on a call instead — never insist.
+
+MATCH THEIR ENERGY, STAY YOURSELF:
+Read how this specific person writes — formal or casual, terse or chatty, lots of emoji or none, proper grammar or relaxed WhatsApp shorthand — and let your own reply lean naturally toward that register, the way a good real salesperson unconsciously mirrors whoever they're talking to. Don't imitate them or copy their exact phrases, and don't overdo it — you're still recognizably Nia: warm, professional, on-brand. A terse customer gets tighter replies with less small talk; a chatty, emoji-heavy customer gets a bit more warmth back. If unsure, default to a friendly, moderately warm tone.
+
 You are given NetOne's knowledge base, the conversation so far, and the details already collected. Return ONLY a JSON object:
 - "reply": the next message to send the prospect
-- "collected": { "name", "product", "financing", "budget", "location", "employment", "monthlyIncome" } — carry forward known values, fill in anything new from the latest message, use null when still unknown or not applicable
+- "collected": { "name", "product", "financing", "budget", "location", "employment", "monthlyIncome" } — carry forward known values, fill in anything new the customer themselves actually stated in the latest message, use null when still unknown or not applicable
 - "complete": true only once every relevant field is filled and you've confirmed follow-up
 
 Return strictly valid JSON. No markdown.`;
@@ -190,8 +203,18 @@ function classifyDeterministic(message: string): LeadAnalysis {
   };
 }
 
+/** True if the customer's most recent message reads like a refusal to answer. */
+function isDecline(history: string): boolean {
+  const lastProspectLine = history
+    .trim()
+    .split('\n')
+    .filter((l) => l.startsWith('Prospect:'))
+    .pop();
+  if (!lastProspectLine) return false;
+  return isDeclinedAnswer(lastProspectLine.replace(/^Prospect:\s*/, ''));
+}
+
 function converseDeterministic(history: string, collected: CollectedProfile): AgentTurn {
-  const missing = missingFields(collected);
   const ask: Record<string, string> = {
     name: 'May I get your full name, please?',
     product: 'Which product are you interested in — one of our NetOne laptops?',
@@ -201,10 +224,26 @@ function converseDeterministic(history: string, collected: CollectedProfile): Ag
     employment: 'To check financing eligibility with our partner lenders — are you formally employed, a civil servant, self-employed, or currently not working?',
     monthlyIncome: 'And roughly what is your monthly income? This helps us confirm affordability with our financing partner.',
   };
-  if (missing.length === 0) {
-    return { reply: 'Thank you! A NetOne sales representative will contact you shortly to finalise everything. 😊', collected, complete: true };
+
+  // Without real NLU this can't extract meaning from free text, but it can
+  // still recognize "no" and move on gracefully instead of repeating the
+  // exact same question forever — a customer who declines has still
+  // answered, they just didn't give us the value.
+  let working = collected;
+  if (isDecline(history)) {
+    const wasAsking = missingFields(collected)[0];
+    if (wasAsking) working = { ...collected, [wasAsking]: 'prefers not to share' };
   }
-  return { reply: `Thanks for reaching out to NetOne! ${ask[missing[0]]}`, collected, complete: false };
+
+  const missing = missingFields(working);
+  if (missing.length === 0) {
+    return { reply: 'Thank you! A NetOne sales representative will contact you shortly to finalise everything. 😊', collected: working, complete: true };
+  }
+  const reply =
+    working !== collected
+      ? `No problem at all, totally understand. ${ask[missing[0]]}`
+      : `Thanks for reaching out to NetOne! ${ask[missing[0]]}`;
+  return { reply, collected: working, complete: false };
 }
 
 // ── Public API ────────────────────────────────────────────────

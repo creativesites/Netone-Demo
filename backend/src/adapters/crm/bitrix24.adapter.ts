@@ -110,13 +110,14 @@ export const bitrix24Adapter: CRMAdapter = {
       return { ok: false, status: 'failed', error: 'Bitrix24 webhook URL not configured' };
     }
 
+    const productInterest = analysis.product ?? lead.collected.product;
     const commentLines = [
       `Channel: ${lead.channel}`,
       `Source: ${lead.source}`,
       `Initial message: "${lead.initial_message}"`,
       '',
       `AI intent: ${analysis.intent}`,
-      `Product interest: ${analysis.product ?? 'n/a'}`,
+      `Product interest: ${productInterest ?? 'n/a'}`,
       `Financing interest: ${analysis.financingInterest ? 'Yes' : 'No'}`,
       `Purchase intent: ${analysis.purchaseIntent}`,
       `AI summary: ${analysis.summary}`,
@@ -125,7 +126,7 @@ export const bitrix24Adapter: CRMAdapter = {
     ];
 
     const fields: Record<string, unknown> = {
-      TITLE: `${lead.name ?? 'WhatsApp Lead'} — ${analysis.product ?? 'NetOne'} (${lead.channel})`,
+      TITLE: `${lead.name ?? 'WhatsApp Lead'} — ${productInterest ?? 'NetOne'} (${lead.channel})`,
       NAME: lead.name ?? undefined,
       SOURCE_ID: 'WEB',
       SOURCE_DESCRIPTION: `NetOne Lead Automation — ${lead.channel}`,
