@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.9.6",
+    "@xyflow/react": "^12.11.3",
     "firebase": "^11.1.0",
     "lucide-react": "^0.468.0",
     "next": "^14.2.25",

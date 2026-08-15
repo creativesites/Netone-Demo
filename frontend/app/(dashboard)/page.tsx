@@ -6,7 +6,7 @@ import type { IntegrationStatus, Lead, Metrics } from '@/lib/types';
 import { Header } from '@/components/Header';
 import { MetricsRow } from '@/components/MetricsRow';
 import { IntegrationFlow } from '@/components/IntegrationFlow';
-import { OmnichannelArchitecture } from '@/components/OmnichannelArchitecture';
+import { ArchitectureDiagram } from '@/components/architecture/ArchitectureDiagram';
 import { LiveActivity } from '@/components/LiveActivity';
 import { LeadDetail } from '@/components/LeadDetail';
 import { Timeline } from '@/components/Timeline';
@@ -58,7 +58,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="mt-4">
-        <OmnichannelArchitecture />
+        <ArchitectureDiagram />
       </section>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-2">

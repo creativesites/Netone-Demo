@@ -13,6 +13,7 @@ import {
   Circle,
   type LucideIcon,
 } from 'lucide-react';
+import { ArchitectureDiagram } from '@/components/architecture/ArchitectureDiagram';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-brand-600">{children}</div>;
@@ -118,6 +119,15 @@ export default function AboutPage() {
             desc="The lead is routed to the right desk (e.g. Financing, Customer Care) and a rep follows up with full context already captured."
           />
         </div>
+      </div>
+
+      {/* Architecture */}
+      <div className="mt-6">
+        <SectionLabel>Explore the architecture</SectionLabel>
+        <p className="mb-3 text-sm text-ink-500">
+          Start at the system level, then step into any highlighted box for how it actually works underneath.
+        </p>
+        <ArchitectureDiagram />
       </div>
 
       {/* Capabilities */}
