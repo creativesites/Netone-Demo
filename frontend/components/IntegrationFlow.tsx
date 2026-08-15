@@ -1,10 +1,40 @@
 const stages = [
-  { label: 'Channel', sub: 'WhatsApp', icon: '💬' },
-  { label: 'Lead Capture', sub: 'Normalized', icon: '🎯' },
-  { label: 'Intelligence', sub: 'AI Analysis', icon: '🧠' },
-  { label: 'Qualification', sub: 'Rules', icon: '⚖️' },
-  { label: 'Bitrix24', sub: 'CRM', icon: '🗄️' },
-  { label: 'Sales', sub: 'Follow-up', icon: '📞' },
+  {
+    label: 'Channel',
+    sub: 'WhatsApp',
+    icon: '💬',
+    desc: 'Customer messages NetOne on WhatsApp — a channel they already use, no app install required.',
+  },
+  {
+    label: 'Lead Capture',
+    sub: 'Normalized',
+    icon: '🎯',
+    desc: 'Every channel (WhatsApp today; web chat, USSD, or call center next) is normalized into one lead format.',
+  },
+  {
+    label: 'Intelligence',
+    sub: 'AI Analysis',
+    icon: '🧠',
+    desc: 'AI reads the conversation and extracts intent, product interest, financing needs, and urgency.',
+  },
+  {
+    label: 'Qualification',
+    sub: 'Rules',
+    icon: '⚖️',
+    desc: 'Business rules decide whether this is a genuine sales opportunity worth a rep’s time.',
+  },
+  {
+    label: 'Bitrix24',
+    sub: 'CRM',
+    icon: '🗄️',
+    desc: 'Qualified leads are created automatically in the real CRM — zero manual data entry.',
+  },
+  {
+    label: 'Sales',
+    sub: 'Follow-up',
+    icon: '📞',
+    desc: 'A sales rep gets an assigned, ready-to-call lead with full context already captured.',
+  },
 ];
 
 export function IntegrationFlow({ activeIndex = -1 }: { activeIndex?: number }) {
@@ -19,7 +49,8 @@ export function IntegrationFlow({ activeIndex = -1 }: { activeIndex?: number }) 
           return (
             <div key={s.label} className="flex items-center gap-1">
               <div
-                className={`min-w-[96px] rounded-xl border px-3 py-2.5 text-center transition-colors duration-500 ${
+                title={s.desc}
+                className={`min-w-[96px] cursor-help rounded-xl border px-3 py-2.5 text-center transition-colors duration-500 ${
                   active ? 'border-brand-500/30 bg-brand-50' : 'border-line bg-white'
                 }`}
               >

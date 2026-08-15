@@ -15,6 +15,13 @@ interface WaStatus {
   user?: string | null;
 }
 
+function displayNumber(user?: string | null): string | null {
+  if (!user) return null;
+  const digits = user.split(':')[0]?.replace(/\D/g, '') ?? '';
+  if (digits.length < 7) return null;
+  return `+${digits}`;
+}
+
 function tone(status?: string) {
   if (status === 'connected') return { dot: 'bg-emerald-500', text: 'text-emerald-600', label: 'Connected', pulse: true };
   if (status === 'connecting') return { dot: 'bg-amber-500', text: 'text-amber-600', label: 'Connecting…', pulse: true };
@@ -49,11 +56,13 @@ export function WhatsAppConnect() {
   }, [status.status, open]);
 
   const t = tone(status.status);
+  const number = displayNumber(status.user);
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
+        title={number ? `Text this number to run the live demo: ${number}` : undefined}
         className="flex items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2 transition-colors hover:bg-surface-muted"
       >
         <span className="relative flex h-2.5 w-2.5">
@@ -62,7 +71,9 @@ export function WhatsAppConnect() {
         </span>
         <div className="text-left leading-tight">
           <div className="text-[10px] uppercase tracking-wide text-ink-400">WhatsApp</div>
-          <div className={`text-xs font-semibold ${t.text}`}>{t.label}</div>
+          <div className={`text-xs font-semibold ${t.text}`}>
+            {status.status === 'connected' && number ? number : t.label}
+          </div>
         </div>
         {status.status !== 'connected' && (
           <span className="ml-1 rounded-lg bg-brand-500 px-2 py-0.5 text-[11px] font-semibold text-white">Connect</span>
@@ -164,7 +175,7 @@ function ConnectModal({
               <Check size={28} />
             </span>
             <div className="text-base font-semibold text-ink-900">WhatsApp linked</div>
-            <div className="text-sm text-ink-500">{status.user?.split(':')[0] ?? 'Device connected'}</div>
+            <div className="text-sm text-ink-500">{displayNumber(status.user) ?? 'Device connected'}</div>
           </div>
         ) : (
           <>
