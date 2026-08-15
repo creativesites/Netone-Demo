@@ -3,13 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
-import { LayoutDashboard, MessagesSquare, SlidersHorizontal, Info } from 'lucide-react';
+import { LayoutDashboard, MessagesSquare, SlidersHorizontal, Info, BookOpen, HelpCircle } from 'lucide-react';
 import { AutoReplyToggle } from './AutoReplyToggle';
+import { GuidedTour } from './GuidedTour';
 
 const nav = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/inbox', label: 'Inbox', icon: MessagesSquare },
-  { href: '/settings/qualification-rules', label: 'Rules', icon: SlidersHorizontal },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, tourId: 'nav-dashboard' },
+  { href: '/inbox', label: 'Inbox', icon: MessagesSquare, tourId: 'nav-inbox' },
+  { href: '/knowledge-base', label: 'Knowledge', icon: BookOpen, tourId: 'nav-knowledge' },
+  { href: '/settings/qualification-rules', label: 'Rules', icon: SlidersHorizontal, tourId: 'nav-rules' },
+  { href: '/help', label: 'Help', icon: HelpCircle, tourId: 'nav-help' },
   { href: '/about', label: 'About', icon: Info },
 ];
 
@@ -18,6 +21,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-surface-muted">
+      <GuidedTour />
       {/* Sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-white/70 p-4 backdrop-blur md:flex">
         <div className="mb-6 flex items-center gap-3 px-1">
@@ -36,6 +40,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                data-tour={item.tourId}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
                   active ? 'bg-brand-50 font-medium text-brand-600' : 'text-ink-500 hover:bg-surface-muted hover:text-ink-900'
                 }`}

@@ -190,3 +190,11 @@ export async function apiPost(path: string, body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+export async function apiGet(path: string) {
+  return fetch(`${BACKEND}${path}`, { cache: 'no-store' });
+}
+
+export async function apiDelete(path: string) {
+  return fetch(`${BACKEND}${path}`, { method: 'DELETE' });
+}
