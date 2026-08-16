@@ -186,3 +186,97 @@ export async function getMetrics() {
     syncedToCrm: Number(r?.synced ?? 0),
   };
 }
+
+export interface AnalyticsData {
+  totals: {
+    totalLeads: number;
+    qualified: number;
+    needsFollowUp: number;
+    unqualified: number;
+    avgScore: number;
+    conversionRate: number; // qualified / total, 0-100
+    bitrixSynced: number;
+    bitrixPending: number;
+    bitrixFailed: number;
+  };
+  dailyVolume: { day: string; count: number }[];
+  byQualification: { status: string; count: number }[];
+  byProduct: { product: string; count: number }[];
+  byCreditRisk: { risk: string; count: number }[];
+  byChannel: { channel: string; count: number }[];
+}
+
+/** Real-data aggregates for the management/analytics view — every number
+ *  computed live from Postgres, nothing mocked or hardcoded. */
+export async function getAnalytics(days = 14): Promise<AnalyticsData> {
+  const [totalsRes, dailyRes, qualRes, productRes, riskRes, channelRes] = await Promise.all([
+    query<{
+      total_leads: string;
+      qualified: string;
+      needs_follow_up: string;
+      unqualified: string;
+      avg_score: string | null;
+      bitrix_synced: string;
+      bitrix_pending: string;
+      bitrix_failed: string;
+    }>(
+      `SELECT
+          COUNT(*)                                                            AS total_leads,
+          COUNT(*) FILTER (WHERE qualification_status = 'qualified')          AS qualified,
+          COUNT(*) FILTER (WHERE qualification_status = 'needs_follow_up')    AS needs_follow_up,
+          COUNT(*) FILTER (WHERE qualification_status = 'unqualified')        AS unqualified,
+          ROUND(AVG(score))                                                   AS avg_score,
+          COUNT(*) FILTER (WHERE bitrix_status = 'synced')                    AS bitrix_synced,
+          COUNT(*) FILTER (WHERE bitrix_status = 'pending' OR bitrix_status IS NULL) AS bitrix_pending,
+          COUNT(*) FILTER (WHERE bitrix_status = 'failed')                    AS bitrix_failed
+       FROM leads`
+    ),
+    query<{ day: string; count: string }>(
+      `SELECT gs.day::date AS day, COUNT(l.id) AS count
+         FROM generate_series((now()::date - ($1::int - 1) * interval '1 day'), now()::date, interval '1 day') AS gs(day)
+         LEFT JOIN leads l ON l.created_at::date = gs.day
+        GROUP BY gs.day
+        ORDER BY gs.day`,
+      [days]
+    ),
+    query<{ status: string; count: string }>(
+      `SELECT COALESCE(qualification_status, 'pending') AS status, COUNT(*) AS count
+         FROM leads GROUP BY 1 ORDER BY 2 DESC`
+    ),
+    query<{ product: string; count: string }>(
+      `SELECT product, COUNT(*) AS count
+         FROM leads WHERE product IS NOT NULL AND product <> ''
+        GROUP BY product ORDER BY count DESC, product LIMIT 8`
+    ),
+    query<{ risk: string; count: string }>(
+      `SELECT COALESCE(credit_risk, 'unknown') AS risk, COUNT(*) AS count
+         FROM leads GROUP BY 1`
+    ),
+    query<{ channel: string; count: string }>(
+      `SELECT channel, COUNT(*) AS count FROM leads GROUP BY channel ORDER BY count DESC`
+    ),
+  ]);
+
+  const t = totalsRes.rows[0];
+  const totalLeads = Number(t?.total_leads ?? 0);
+  const qualified = Number(t?.qualified ?? 0);
+
+  return {
+    totals: {
+      totalLeads,
+      qualified,
+      needsFollowUp: Number(t?.needs_follow_up ?? 0),
+      unqualified: Number(t?.unqualified ?? 0),
+      avgScore: Math.round(Number(t?.avg_score ?? 0)),
+      conversionRate: totalLeads > 0 ? Math.round((qualified / totalLeads) * 100) : 0,
+      bitrixSynced: Number(t?.bitrix_synced ?? 0),
+      bitrixPending: Number(t?.bitrix_pending ?? 0),
+      bitrixFailed: Number(t?.bitrix_failed ?? 0),
+    },
+    dailyVolume: dailyRes.rows.map((r) => ({ day: r.day, count: Number(r.count) })),
+    byQualification: qualRes.rows.map((r) => ({ status: r.status, count: Number(r.count) })),
+    byProduct: productRes.rows.map((r) => ({ product: r.product, count: Number(r.count) })),
+    byCreditRisk: riskRes.rows.map((r) => ({ risk: r.risk, count: Number(r.count) })),
+    byChannel: channelRes.rows.map((r) => ({ channel: r.channel, count: Number(r.count) })),
+  };
+}

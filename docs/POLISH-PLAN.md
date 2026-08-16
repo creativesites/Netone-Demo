@@ -26,7 +26,7 @@ demo script, discovery questions, and documentation deliverables).
 | 5 | Qualification / scoring / risk / routing verification | ✅ Done (real live test) |
 | 6 | Bitrix create/update/enrichment verification | ✅ Done (real live test) |
 | 7 | Human handoff | ✅ Done (real live test) |
-| 8 | Management visibility (real-data analytics) | 🔲 Not started |
+| 8 | Management visibility (real-data analytics) | ✅ Done (real live test) |
 | 9 | Source/channel architecture (attribution fields) | 🔲 Not started |
 | 10 | Persistence/realtime/error hardening + backend API auth | 🔲 Not started |
 | 11 | Testing | 🔲 Not started |
@@ -534,3 +534,72 @@ updated normally. Explicitly resumed (`handoff_active: false`) and message
 
 Test artifacts (fake Bitrix/WhatsApp servers, test Postgres role/db)
 removed after verification for all three phases.
+
+### Bug fix — Export to Excel button on the leads page (✅ done, 2026-08-16)
+User-reported: clicking "Export to Excel" on `/leads` did nothing. Two real
+bugs in `exportLeadsToExcel()`:
+
+1. The "Score" column used `(l.score ?? '') as string` — `as string` is a
+   compile-time-only TypeScript assertion, it does not convert the value
+   at runtime. `l.score` is a `number`, so `csvCell()` then called
+   `.replace()` on an actual number primitive — numbers don't have that
+   method, so it threw an uncaught `TypeError` immediately, before ever
+   reaching the download code. Since virtually every real lead has a
+   non-null score, this broke the export for almost every lead in the
+   system, with zero visible error to the user (just a console exception
+   nobody was looking at). Fixed with a real `String()` conversion.
+2. `URL.revokeObjectURL(url)` was called synchronously in the same tick as
+   `a.click()` — a well-documented race in several browsers (Firefox
+   especially) where revoking the object URL can beat the browser to
+   actually starting the download, silently failing it with no error.
+   Deferred the cleanup (`removeChild` + `revokeObjectURL`) with
+   `setTimeout` so the download has a chance to start first.
+
+Verified with a Node-side smoke test (minimal `document`/`Blob`/`URL`
+stubs) using a realistic lead with a numeric score: the bug's failure mode
+is proven directly by JS type semantics (numbers have no `.replace`), and
+the fixed version completes without throwing, clicks the anchor, and
+defers cleanup correctly.
+
+### Phase 8 — Management visibility / real-data analytics (✅ done, verified live, 2026-08-16)
+The dashboard's only management-facing numbers were 4 today-only snapshot
+tiles (`MetricsRow`). Built a dedicated `/analytics` page with real,
+live-computed aggregates — nothing mocked:
+
+- **Backend:** new `getAnalytics(days)` in `leads.repo.ts` — one
+  `Promise.all` of 6 SQL aggregate queries (totals + conversion rate +
+  avg score + Bitrix sync breakdown; daily lead volume via
+  `generate_series` so zero-lead days show as real gaps, not skipped
+  dates; qualification breakdown; top-8 product breakdown; credit-risk
+  distribution; channel breakdown). New `GET /api/analytics?days=` route
+  (default 14, capped at 90).
+- **Frontend:** new `/analytics` page + `Analytics` nav item. Stat tiles
+  (total leads, conversion rate, avg score, synced-to-CRM, plus the
+  qualified/follow-up/unqualified split) and 4 charts: a daily-volume bar
+  chart with a hover tooltip, and three ranked horizontal breakdown bars
+  (qualification, credit risk, top products, channel). No new charting
+  dependency — hand-rolled SVG/Tailwind bars, consistent with the rest of
+  the app's existing hand-rolled components. Followed the dataviz skill's
+  core rules: single hue for magnitude-only series (daily volume, product,
+  channel), the app's already-established status colors reused (not
+  reinvented) for the two genuinely-categorical breakdowns (qualification,
+  credit risk) with every row direct-labeled by name so identity never
+  depends on color alone, one axis only, thin/rounded bars with spacers,
+  hover tooltip on the time-series chart.
+- Every failed-Bitrix-sync count surfaces a visible warning banner on the
+  page itself, not just a number to notice.
+
+**Verification:** seeded 6 leads with known, hand-picked values (3
+qualified/2 needs-follow-up/1 unqualified; scores 85/72/55/20/45/90; mixed
+credit risk; 2 products; whatsapp+facebook channels; synced/pending/failed
+Bitrix statuses) directly into a real Postgres instance and asserted every
+computed number against hand-calculated expected values — total leads,
+conversion rate (50%), average score (61, correctly rounded), Bitrix
+synced/pending/failed counts, per-product and per-channel counts, and the
+daily-volume series' zero-filled gap days — all correct. Then verified the
+real HTTP route and the actual page's server-rendered HTML against the
+same seeded data (all stat tiles, chart section headers, and figures
+present and correct), plus a regression check that `/leads`, `/`, and
+`/inbox` still render cleanly. `tsc` and `npm run build` clean throughout.
+Test artifacts (seeded rows, test Postgres role/db) removed after
+verification.

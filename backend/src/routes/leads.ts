@@ -1,6 +1,6 @@
 /** REST endpoints backing the dashboard (leads, metrics, status). */
 import type { FastifyInstance } from 'fastify';
-import { getLeadById, getLeadEvents, getMetrics, listRecentLeads } from '../db/leads.repo.js';
+import { getLeadById, getLeadEvents, getMetrics, listRecentLeads, getAnalytics } from '../db/leads.repo.js';
 import { getIntegrationStatus } from '../services/status.service.js';
 
 export async function leadRoutes(app: FastifyInstance): Promise<void> {
@@ -27,5 +27,11 @@ export async function leadRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/status', async () => {
     return getIntegrationStatus();
+  });
+
+  app.get('/api/analytics', async (req) => {
+    const requested = Number((req.query as { days?: string }).days);
+    const days = Number.isInteger(requested) ? Math.min(Math.max(requested, 1), 90) : 14;
+    return getAnalytics(days);
   });
 }

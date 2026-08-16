@@ -134,6 +134,25 @@ export interface Metrics {
   syncedToCrm: number;
 }
 
+export interface Analytics {
+  totals: {
+    totalLeads: number;
+    qualified: number;
+    needsFollowUp: number;
+    unqualified: number;
+    avgScore: number;
+    conversionRate: number;
+    bitrixSynced: number;
+    bitrixPending: number;
+    bitrixFailed: number;
+  };
+  dailyVolume: { day: string; count: number }[];
+  byQualification: { status: string; count: number }[];
+  byProduct: { product: string; count: number }[];
+  byCreditRisk: { risk: string; count: number }[];
+  byChannel: { channel: string; count: number }[];
+}
+
 export interface IntegrationStatus {
   whatsapp: { status: string; detail?: string };
   leadEngine: { status: string; detail?: string };
