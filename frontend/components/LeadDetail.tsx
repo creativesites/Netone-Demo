@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { ExternalLink, Check, X, Clock, PhoneCall } from 'lucide-react';
 import type { Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
@@ -49,12 +50,17 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
 
   return (
     <div className="card p-5">
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="text-lg font-semibold text-ink-900">{lead.name ?? 'Unknown contact'}</div>
           <div className="text-xs text-ink-500">{lead.phone}</div>
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${q.cls}`}>{q.text}</span>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${q.cls}`}>{q.text}</span>
+          <Link href={`/leads/${lead.id}`} className="text-[11px] font-medium text-brand-600 hover:underline">
+            View full profile →
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

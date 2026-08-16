@@ -4,8 +4,10 @@ import { getLeadById, getLeadEvents, getMetrics, listRecentLeads } from '../db/l
 import { getIntegrationStatus } from '../services/status.service.js';
 
 export async function leadRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/api/leads', async () => {
-    const recent = await listRecentLeads(50);
+  app.get('/api/leads', async (req) => {
+    const requested = Number((req.query as { limit?: string }).limit);
+    const limit = Number.isInteger(requested) ? Math.min(Math.max(requested, 1), 1000) : 50;
+    const recent = await listRecentLeads(limit);
     return { leads: recent };
   });
 

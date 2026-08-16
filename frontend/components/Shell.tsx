@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
-import { LayoutDashboard, MessagesSquare, SlidersHorizontal, Info, BookOpen, HelpCircle, Menu, X } from 'lucide-react';
+import { LayoutDashboard, MessagesSquare, Users, SlidersHorizontal, Info, BookOpen, HelpCircle, Menu, X } from 'lucide-react';
 import { AutoReplyToggle } from './AutoReplyToggle';
 import { GuidedTour } from './GuidedTour';
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, tourId: 'nav-dashboard' },
   { href: '/inbox', label: 'Inbox', icon: MessagesSquare, tourId: 'nav-inbox' },
+  { href: '/leads', label: 'Leads', icon: Users, tourId: 'nav-leads' },
   { href: '/knowledge-base', label: 'Knowledge', icon: BookOpen, tourId: 'nav-knowledge' },
   { href: '/settings/qualification-rules', label: 'Rules', icon: SlidersHorizontal, tourId: 'nav-rules' },
   { href: '/help', label: 'Help', icon: HelpCircle, tourId: 'nav-help' },
@@ -34,7 +35,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   return (
     <nav className="flex flex-col gap-1">
       {nav.map((item) => {
-        const active = pathname === item.href;
+        const active = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
         return (
           <Link
