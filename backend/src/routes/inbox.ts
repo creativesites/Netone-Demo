@@ -8,6 +8,7 @@ import {
   getMessages,
   addMessage,
   markRead,
+  setHandoff,
 } from '../db/conversations.repo.js';
 import { mirrorConversation, mirrorMessage } from '../firebase.js';
 
@@ -53,10 +54,25 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
       logger.warn({ err: String(err) }, 'Manual send failed (WhatsApp offline?)');
     }
 
-    const msg = await addMessage(id, 'outbound', 'agent', text, null, delivered ? 'sent' : 'failed');
+    const msg = await addMessage(id, 'outbound', 'human', text, null, delivered ? 'sent' : 'failed');
+    // A human just spoke to this customer directly — stop Nia from also
+    // auto-replying here until a rep explicitly hands it back.
+    if (!conv.handoff_active) await setHandoff(id, true);
     const updated = await getConversation(id);
     await mirrorMessage(id, msg as unknown as Record<string, unknown>);
     if (updated) await mirrorConversation(updated as unknown as Record<string, unknown>);
     return { ok: true, delivered };
+  });
+
+  // Hand a conversation back to Nia (or take it over without sending a message first).
+  app.post('/api/conversations/:id/handoff', async (req, reply) => {
+    const id = Number((req.params as { id: string }).id);
+    const active = Boolean((req.body as { active?: boolean })?.active);
+    if (!Number.isInteger(id)) return reply.code(400).send({ error: 'invalid id' });
+    const conv = await getConversation(id);
+    if (!conv) return reply.code(404).send({ error: 'not found' });
+    const updated = await setHandoff(id, active);
+    await mirrorConversation(updated as unknown as Record<string, unknown>);
+    return { conversation: updated };
   });
 }

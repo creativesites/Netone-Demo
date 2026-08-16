@@ -23,9 +23,9 @@ demo script, discovery questions, and documentation deliverables).
 | 2 | Hero journey end-to-end verification | ✅ Done (real live test) |
 | 3 | Conversational flow improvements | ✅ Done |
 | 4 | Knowledge-base correctness | ✅ Done (real live test) |
-| 5 | Qualification / scoring / risk / routing verification | 🔲 Not started |
-| 6 | Bitrix create/update/enrichment verification | 🔲 Not started |
-| 7 | Human handoff | 🔲 Not started |
+| 5 | Qualification / scoring / risk / routing verification | ✅ Done (real live test) |
+| 6 | Bitrix create/update/enrichment verification | ✅ Done (real live test) |
+| 7 | Human handoff | ✅ Done (real live test) |
 | 8 | Management visibility (real-data analytics) | 🔲 Not started |
 | 9 | Source/channel architecture (attribution fields) | 🔲 Not started |
 | 10 | Persistence/realtime/error hardening + backend API auth | 🔲 Not started |
@@ -399,3 +399,138 @@ Read `kb.repo.ts`, `kb.ts` routes, `ProductsTab`/`DocumentsTab`, and how
   correctly wired to the backend, no correctness issues found.
 
 Test artifacts (test Postgres role/db) removed after verification.
+
+### Phase 5 — Qualification / scoring / risk / routing verification (✅ done, verified live, 2026-08-16)
+Read `qualification.service.ts` in full end to end. Found and fixed one
+real, live-reproducible bug:
+
+- **Cash customers were misrouted to the Financing Sales Desk and got a
+  permanent phantom "request employment" next action.** The `wantsFinancing`
+  check (used for both Bitrix routing/`assignedTo` and the score/next-action
+  logic) was `collected.financing && !isNegativeAnswer(collected.financing)`.
+  `isNegativeAnswer()` only recognizes words like "no"/"none"/"unemploy" —
+  it doesn't recognize "cash" as meaning *not* wanting financing, since
+  "cash" isn't grammatically negative. So a customer who explicitly said
+  "cash" was silently treated as `wantsFinancing: true`. That flipped
+  `assignedTo` to "Financing Sales Desk" instead of "Sales Team", and since
+  `employment` is a required, weighted scoring criterion, a cash customer
+  (who Nia correctly never asks about employment — see rule 4 of
+  `AGENT_PROMPT`) could never satisfy it, so `nextAction` permanently read
+  "Request employment / credit risk and continue qualification" even after
+  the conversation was otherwise fully complete and handed to a rep.
+  The exact same buggy pattern existed independently in
+  `ai.service.ts::missingFields()`'s own `wantsFinancing` tri-state,
+  meaning the conversational agent's own "still missing" list had the same
+  blind spot (lower practical risk there since `AGENT_PROMPT` rule 4
+  explicitly tells the model never to ask when cash was stated, but the
+  deterministic fallback path — used when both AI providers are down —
+  would have followed the buggy "still missing" list literally and asked
+  anyway).
+  Fixed with one new shared, exported `wantsFinancingAnswer()` in
+  `qualification.service.ts` (cash/upfront/outright keywords → false,
+  declined → null/unknown, negative-answer words → false, anything else →
+  true) used consistently by both files, and `evalCriterion()`'s employment
+  case now scores full marks / "met" when the customer's own confirmed
+  answer is cash — never blocking the score or the next-action message for
+  a sale that was never going to need credit underwriting.
+- Reviewed the rest of the scoring/tier/routing logic (thresholds,
+  employment-weight → credit-risk tier mapping, Customer Care routing for
+  complaints/support, financing-declined next-action branch from Phase 3)
+  — all correct, no further issues found.
+
+**Verification:** pure-function unit tests first (no AI needed — this is
+deterministic logic) confirmed the bug and the fix across 6 scenarios
+(wants financing, financing + declined employment, financing not yet
+known, cash, declined the cash/financing question itself, unemployed +
+wants financing) — all now route/score/message correctly, with zero
+regressions to the financing-customer paths. Then verified live (real
+Postgres, real DeepSeek) with a genuine cash-purchase conversation: final
+`assigned_to: "Sales Team"`, `next_action: "Call customer to close the
+sale"`, `collected.employment: null` (never asked, as expected).
+
+### Phase 6 — Bitrix create/update/enrichment verification (✅ done, verified live, 2026-08-16)
+Bitrix create/update/enrichment logic itself was already heavily verified
+in Phases 1 and 3 (deterministic STATUS_ID, score/credit-risk/employment
+lines in the CRM comment, one-turn-lag fix). This phase's review found one
+new, real, live-reproducible bug in how leads *reach* that logic:
+
+- **Concurrent messages from the same contact could create duplicate
+  Bitrix leads.** Each pipeline step is deliberately paced
+  (`PIPELINE_STEP_DELAY_MS`, default 400ms) for the live demo animation, so
+  a single message's full run can take several seconds end to end. Nothing
+  serialized `processEvent()` calls per contact, so a real customer sending
+  two WhatsApp messages a couple of seconds apart — completely normal
+  behavior — could let two `processEvent()` calls for the *same* contact
+  run concurrently. Both would read the lead's `bitrix_lead_id` as
+  still-null before either had finished persisting it, and both would call
+  `crm.lead.add` — two separate Bitrix leads for one customer, a real risk
+  during a live demo if messages come in close together while narrating.
+  Fixed with `serializeByContact()` in `lead.service.ts`: an in-memory
+  per-`(channel, externalContactId)` async queue (self-cleaning — no
+  unbounded growth) that makes a second message for the same contact wait
+  for the first to fully land before it starts. Unrelated contacts are
+  completely unaffected — no global bottleneck.
+- Reviewed `assignLead()` in `bitrix24.adapter.ts`: defined on the adapter
+  interface but never called from anywhere — the computed `assignedTo`
+  ("Sales Team" / "Financing Sales Desk" / "Customer Care") is currently
+  informational only (shown in the CRM comment and the dashboard), not
+  wired to Bitrix's real per-team `ASSIGNED_BY_ID`. Every lead uses the
+  single static `BITRIX24_ASSIGNED_BY_ID` env var regardless of routing
+  decision. Not fixed — doing so needs real Bitrix user/queue IDs per team
+  from NetOne, which nobody has supplied; noted as a `PRODUCTION-READINESS.md`
+  item for Phase 13, not a bug in what exists today.
+- Reviewed retry/self-heal behavior: a failed `crm.lead.add` leaves
+  `bitrix_lead_id` null, so the very next message for that contact retries
+  creation automatically (no separate retry queue needed); a failed
+  `crm.lead.update` is retried the same way on the next turn. Both already
+  correct, no changes needed.
+
+**Verification:** reproduced the race live — fired two messages for the
+same contact truly concurrently (not sequentially awaited) against a real
+Postgres + fake Bitrix server, with realistic (non-zero) step delays. Before
+reasoning through the fix this was confirmed exploitable by code inspection
+(both reads happen before either write completes); after the fix, the fake
+Bitrix server's request log showed exactly one `crm.lead.add` for the
+contact despite the two concurrent messages, with the second message's
+data (budget) correctly merged into the same lead.
+
+### Phase 7 — Human handoff (✅ done, verified live, 2026-08-16)
+Phase 0 audit finding: "Nia keeps auto-replying even after a human sends a
+manual reply in the same conversation." Confirmed true — the only
+auto-reply gate was the dashboard-wide `autoReplyEnabled` toggle; nothing
+was scoped per conversation, and a human's manual reply
+(`POST /api/conversations/:id/send`) and Nia's own auto-replies were even
+stored with the identical `sender: 'agent'`, indistinguishable in the
+inbox UI. Implemented real per-conversation handoff:
+
+- **Schema:** `conversations.handoff_active` (bool) + `handoff_at`
+  (timestamp), added via the existing idempotent `ALTER TABLE ADD COLUMN
+  IF NOT EXISTS` pattern.
+- **Backend:** sending a manual reply now automatically sets
+  `handoff_active = true` for that conversation (`inbox.ts`). New
+  `POST /api/conversations/:id/handoff { active }` lets a rep explicitly
+  hand a chat back to Nia (or take it over without sending a message
+  first). `lead.service.ts::runConversationalAgent` now checks
+  `conv.handoff_active` before sending Nia's reply — the lead's
+  qualification/score/Bitrix sync still updates every turn either way
+  (that data stays valuable to the rep), only the *auto-reply message* is
+  suppressed while a human is handling the chat.
+- **Message attribution:** `messages.sender` gained a `'human'` value
+  distinct from `'agent'` (Nia) — a manual reply now records as `'human'`
+  instead of silently reusing `'agent'`. The inbox UI shows "Sales rep" vs.
+  "Nia · AI assistant" on each outbound bubble, an amber "Human handling
+  this chat" banner with a "Resume AI" button while handed off, and a
+  small "Human" badge in the conversation list for quick scanning.
+- The footer hint under the manual-reply box now reflects handoff state
+  instead of a static line.
+
+**Verification (real Postgres, real DeepSeek):** message 1 to a fresh
+contact got a normal Nia auto-reply (`handoff_active: false`). Simulated a
+rep taking over — `handoff_active` flipped to `true`. Message 2 from the
+same customer produced **zero** additional Nia replies (auto-reply message
+count stayed unchanged) while qualification/collected-profile data still
+updated normally. Explicitly resumed (`handoff_active: false`) and message
+3 correctly got a fresh Nia auto-reply again (message count incremented).
+
+Test artifacts (fake Bitrix/WhatsApp servers, test Postgres role/db)
+removed after verification for all three phases.

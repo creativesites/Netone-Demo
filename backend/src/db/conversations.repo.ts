@@ -21,6 +21,10 @@ export interface Conversation {
   intent: string | null;
   sentiment: string | null;
   ai_priority: string | null;
+  // True once a human agent has sent a manual reply in this conversation —
+  // Nia stops auto-replying here until a rep explicitly resumes her.
+  handoff_active: boolean;
+  handoff_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,7 +33,7 @@ export interface Message {
   id: number;
   conversation_id: number;
   direction: 'inbound' | 'outbound';
-  sender: 'contact' | 'agent' | 'system';
+  sender: 'contact' | 'agent' | 'human' | 'system';
   body: string;
   external_message_id: string | null;
   // null for inbound messages (n/a). For outbound: 'sent' | 'failed'.
@@ -62,7 +66,7 @@ export async function upsertConversation(
 export async function addMessage(
   conversationId: number,
   direction: 'inbound' | 'outbound',
-  sender: 'contact' | 'agent' | 'system',
+  sender: 'contact' | 'agent' | 'human' | 'system',
   body: string,
   externalMessageId: string | null,
   deliveryStatus: 'sent' | 'failed' | null = null
@@ -121,6 +125,19 @@ export async function markRead(conversationId: number): Promise<void> {
   await query(`UPDATE conversations SET unread_count = 0, updated_at = now() WHERE id = $1`, [
     conversationId,
   ]);
+}
+
+/** Take over (or hand back) a conversation from Nia. */
+export async function setHandoff(conversationId: number, active: boolean): Promise<Conversation> {
+  const res = await query<Conversation>(
+    `UPDATE conversations SET
+        handoff_active = $2,
+        handoff_at = CASE WHEN $2 THEN now() ELSE handoff_at END,
+        updated_at = now()
+      WHERE id = $1 RETURNING *`,
+    [conversationId, active]
+  );
+  return res.rows[0];
 }
 
 export async function listConversations(limit = 50): Promise<Conversation[]> {

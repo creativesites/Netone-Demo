@@ -158,14 +158,38 @@ export function isNegativeAnswer(v: string | null): boolean {
   const t = v.toLowerCase();
   return t.includes('none') || t.includes('no ') || t === 'no' || t.includes('unemploy');
 }
-const negative = isNegativeAnswer;
+
+// "cash" is a perfectly normal, non-negative answer to "cash or financing?" —
+// isNegativeAnswer() (which looks for words like "no"/"none") doesn't
+// recognize it, so treating "not negative" as "wants financing" silently
+// flips a cash customer to wantsFinancing=true. That single bad tri-state
+// cascades everywhere: Nia's own missingFields() (ai.service.ts) would think
+// employment/income are still needed and keep the door open to ask for them
+// despite the prompt's rule never to (mirroring the same authoritative
+// answer), the score never marks "employment" as satisfied for a cash sale
+// so the CRM's next-action permanently reads "Request employment / credit
+// risk" even after the conversation is otherwise complete, and routing
+// sends a cash customer to the Financing Sales Desk instead of Sales Team.
+// The customer's own confirmed answer here is authoritative — it settles
+// the question outright rather than being just one more signal alongside
+// the gatekeeper's per-message guess.
+export function wantsFinancingAnswer(financing: string | null): boolean | null {
+  if (!financing) return null; // not yet known
+  if (isDeclinedAnswer(financing)) return null; // declined the question — still unknown, not "no"
+  const t = financing.toLowerCase();
+  const cashWords = ['cash', 'upfront', 'full amount', 'full price', 'outright', 'one off', 'one-off', 'lump sum', 'pay in full', 'own money'];
+  if (cashWords.some((w) => t.includes(w))) return false;
+  if (isNegativeAnswer(financing)) return false;
+  return true;
+}
 
 function evalCriterion(
   rule: QualificationCriterionRule,
   analysis: LeadAnalysis,
   collected: CollectedProfile,
   hasPhone: boolean,
-  employmentWeights: Record<EmploymentCategory, number>
+  employmentWeights: Record<EmploymentCategory, number>,
+  financingAnswer: boolean | null
 ): ScoreCriterionResult {
   let fraction = 0; // 0..1 of the weight earned
   // "met" normally means "earned full marks", but for employment it must mean
@@ -183,7 +207,7 @@ function evalCriterion(
       fraction = collected.product || analysis.product ? 1 : 0;
       break;
     case 'financing':
-      fraction = analysis.financingInterest || (collected.financing && !negative(collected.financing)) ? 1 : 0;
+      fraction = analysis.financingInterest || wantsFinancingAnswer(collected.financing) !== null ? 1 : 0;
       break;
     case 'location':
       fraction = collected.location ? 1 : 0;
@@ -192,6 +216,16 @@ function evalCriterion(
       fraction = hasPhone ? 1 : 0;
       break;
     case 'employment': {
+      // Cash purchase — employment/credit-risk assessment doesn't apply and
+      // Nia never asks for it (ai.service.ts::missingFields uses the same
+      // wantsFinancingAnswer() check), so it must not sit in the missing-
+      // fields list forever or drag the score down for a sale that was
+      // never going to need financing underwriting.
+      if (financingAnswer === false) {
+        fraction = 1;
+        met = true;
+        break;
+      }
       const category = canonicalizeEmployment(collected.employment);
       // Declined: we got an answer (met), but no usable risk signal (0 points) —
       // never silently treated as "informally employed" just because they
@@ -217,7 +251,16 @@ export function qualify(
   hasPhone: boolean,
   rules: QualificationRules = DEFAULT_QUALIFICATION_RULES
 ): QualificationResult {
-  const breakdown = rules.criteria.map((rule) => evalCriterion(rule, analysis, collected, hasPhone, rules.employmentWeights));
+  // The customer's own confirmed answer is authoritative once given — only
+  // fall back to the gatekeeper's per-message read while nothing's been
+  // collected yet. See wantsFinancingAnswer() for why this can't just be
+  // "not a negative answer".
+  const financingAnswer = wantsFinancingAnswer(collected.financing);
+  const wantsFinancing = financingAnswer !== null ? financingAnswer : analysis.financingInterest;
+
+  const breakdown = rules.criteria.map((rule) =>
+    evalCriterion(rule, analysis, collected, hasPhone, rules.employmentWeights, financingAnswer)
+  );
   const maxScore = rules.criteria.reduce((sum, r) => sum + r.weight, 0) || 1;
   const rawScore = breakdown.reduce((sum, b) => sum + b.earned, 0);
   const score = Math.round((rawScore / maxScore) * 100);
@@ -233,8 +276,6 @@ export function qualify(
   } else {
     qualification = 'unqualified';
   }
-
-  const wantsFinancing = analysis.financingInterest || (collected.financing && !negative(collected.financing));
 
   // Simple routing rules for the demo — configurable teams could follow the same pattern.
   let assignedTo = 'Sales Team';

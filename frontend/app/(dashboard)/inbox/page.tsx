@@ -57,6 +57,11 @@ export default function InboxPage() {
     }
   }
 
+  async function toggleHandoff(active: boolean) {
+    if (activeId == null) return;
+    await apiPost(`/api/conversations/${activeId}/handoff`, { active });
+  }
+
   return (
     <div className="flex h-[calc(100vh-57px)] md:grid md:grid-cols-[320px_1fr] lg:grid-cols-[320px_1fr_300px]">
       <div className={`min-h-0 min-w-0 flex-1 flex-col md:flex ${mobileView === 'thread' ? 'hidden' : 'flex'}`}>
@@ -69,7 +74,13 @@ export default function InboxPage() {
         />
       </div>
       <div className={`min-h-0 min-w-0 flex-1 flex-col md:flex ${mobileView === 'list' ? 'hidden' : 'flex'}`}>
-        <MessageThread conversation={active} messages={messages} onSend={sendManual} onBack={() => setMobileView('list')} />
+        <MessageThread
+          conversation={active}
+          messages={messages}
+          onSend={sendManual}
+          onBack={() => setMobileView('list')}
+          onToggleHandoff={toggleHandoff}
+        />
       </div>
       <div className="hidden lg:block">
         <IntelPanel conversation={active} lead={activeLead} />

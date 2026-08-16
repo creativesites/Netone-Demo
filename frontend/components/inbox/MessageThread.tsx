@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Send, Bot, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, ArrowLeft, UserCheck, RotateCcw } from 'lucide-react';
 import type { ChatMessage, Conversation } from '@/lib/types';
 
 function fmt(iso: string) {
@@ -17,15 +17,18 @@ export function MessageThread({
   messages,
   onSend,
   onBack,
+  onToggleHandoff,
 }: {
   conversation: Conversation | null;
   messages: ChatMessage[];
   onSend: (text: string) => Promise<boolean>;
   onBack?: () => void;
+  onToggleHandoff?: (active: boolean) => Promise<void>;
 }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,6 +61,16 @@ export function MessageThread({
     }
   }
 
+  async function resumeAi() {
+    if (!onToggleHandoff) return;
+    setResuming(true);
+    try {
+      await onToggleHandoff(false);
+    } finally {
+      setResuming(false);
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-col bg-surface-muted">
       <div className="flex items-center justify-between border-b border-line bg-white px-4 py-3">
@@ -81,6 +94,23 @@ export function MessageThread({
         )}
       </div>
 
+      {conversation.handoff_active && (
+        <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2">
+          <div className="flex items-center gap-1.5 text-[12px] font-medium text-amber-800">
+            <UserCheck size={13} /> Human handling this chat — Nia is paused here
+          </div>
+          {onToggleHandoff && (
+            <button
+              onClick={resumeAi}
+              disabled={resuming}
+              className="flex shrink-0 items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-800 shadow-sm hover:bg-amber-100 disabled:opacity-50"
+            >
+              <RotateCcw size={11} /> {resuming ? 'Resuming…' : 'Resume AI'}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scroll-thin px-4 py-4">
         {messages.map((m) => {
           const mine = m.direction === 'outbound';
@@ -90,6 +120,11 @@ export function MessageThread({
                 {mine && m.sender === 'agent' && (
                   <div className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold text-white/85">
                     <Bot size={10} /> Nia · AI assistant
+                  </div>
+                )}
+                {mine && m.sender === 'human' && (
+                  <div className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold text-white/85">
+                    <User size={10} /> Sales rep
                   </div>
                 )}
                 <div className="whitespace-pre-wrap break-words">{m.body}</div>
@@ -131,7 +166,9 @@ export function MessageThread({
           </button>
         </div>
         <p className="mt-1.5 px-1 text-[10px] text-ink-400">
-          The AI assistant replies automatically when auto-reply is on. Manual messages send instantly over WhatsApp.
+          {conversation.handoff_active
+            ? 'Nia is paused for this chat since a rep took over — resume her above when you\'re done.'
+            : 'Sending a manual reply here hands this chat to you — Nia pauses automatically until you resume her.'}
         </p>
       </div>
     </div>

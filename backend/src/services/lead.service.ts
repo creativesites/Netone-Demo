@@ -51,7 +51,37 @@ import {
 const STEP_DELAY_MS = Number(process.env.PIPELINE_STEP_DELAY_MS ?? 400);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Each pipeline step is deliberately paced (STEP_DELAY_MS) for the live demo
+// animation, so a single message's full run can take several seconds end to
+// end. A real customer sending two messages seconds apart — completely
+// normal WhatsApp behavior — would otherwise let two processEvent() calls
+// for the SAME contact run concurrently. Both would read the lead's
+// bitrix_lead_id as still-null before either finished, and both would call
+// crm.lead.add — a real, live-reproducible duplicate-Bitrix-lead bug, not
+// just a theoretical one. Serializing by (channel, contact) forces the
+// second message to wait for the first to fully land before it starts,
+// closing the race without slowing down unrelated contacts at all.
+const contactQueues = new Map<string, Promise<unknown>>();
+
+function serializeByContact<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const tail = contactQueues.get(key) ?? Promise.resolve();
+  const settled = tail.then(fn, fn);
+  const marker = settled.then(
+    () => undefined,
+    () => undefined
+  );
+  contactQueues.set(key, marker);
+  marker.finally(() => {
+    if (contactQueues.get(key) === marker) contactQueues.delete(key);
+  });
+  return settled;
+}
+
 export async function processEvent(event: NormalizedLeadEvent): Promise<void> {
+  return serializeByContact(`${event.channel}:${event.externalContactId}`, () => processEventInner(event));
+}
+
+async function processEventInner(event: NormalizedLeadEvent): Promise<void> {
   const correlationId = randomUUID();
 
   // ── 0. Dedup guard ─────────────────────────────────────
@@ -337,6 +367,17 @@ async function runConversationalAgent(
       turn.complete ? 'all details collected · Bitrix24 enriched' : `${qual.score}/100 · Bitrix24 updated`,
       lead.id
     );
+  }
+
+  if (conv.handoff_active) {
+    // A human agent already took over this conversation (sent a manual
+    // reply) — the lead/qualification/Bitrix data above is still kept
+    // current, but Nia must not also message the customer until a rep
+    // explicitly hands it back. Two AI+human replies to the same message
+    // would confuse the customer and undercut whatever the rep just said.
+    await step(correlationId, 'auto_reply_skipped', 'Human agent handling — Nia paused for this chat', 'info', 'resume from the inbox', lead.id);
+    await emitLead(lead.id, correlationId, updatedLead);
+    return;
   }
 
   if (!settings.autoReplyEnabled) {

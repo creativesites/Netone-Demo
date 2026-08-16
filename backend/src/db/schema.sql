@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS messages (
   id                   SERIAL PRIMARY KEY,
   conversation_id      INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   direction            TEXT    NOT NULL,            -- inbound | outbound
-  sender               TEXT    NOT NULL DEFAULT 'contact', -- contact | agent | system
+  sender               TEXT    NOT NULL DEFAULT 'contact', -- contact | agent (Nia) | human (staff) | system
   body                 TEXT    NOT NULL,
   external_message_id  TEXT,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -132,3 +132,11 @@ CREATE TABLE IF NOT EXISTS kb_documents (
   status       TEXT        NOT NULL DEFAULT 'indexed', -- ingesting | indexed | failed
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ── Human handoff ──────────────────────────────────────────────────
+-- A human agent taking over a conversation (via the manual reply dock)
+-- must stop Nia from also auto-replying to the same customer. Scoped per
+-- conversation, not the dashboard-wide auto-reply toggle, so a rep can take
+-- over one chat without turning the bot off everywhere else.
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS handoff_active BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS handoff_at     TIMESTAMPTZ;

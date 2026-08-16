@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, UserCheck } from 'lucide-react';
 import type { Conversation } from '@/lib/types';
 
 function initials(name: string | null, phone: string | null) {
@@ -103,6 +103,11 @@ export function ConversationList({
                     )}
                     {c.ai_priority && c.is_lead && (
                       <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[9px] font-medium capitalize text-brand-600">{c.ai_priority} intent</span>
+                    )}
+                    {c.handoff_active && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                        <UserCheck size={9} /> Human
+                      </span>
                     )}
                     {c.unread_count > 0 && (
                       <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[9px] font-bold text-white">

@@ -102,6 +102,8 @@ export interface Conversation {
   intent: string | null;
   sentiment: string | null;
   ai_priority: string | null;
+  handoff_active: boolean;
+  handoff_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -110,7 +112,7 @@ export interface ChatMessage {
   id: number;
   conversation_id: number;
   direction: 'inbound' | 'outbound';
-  sender: 'contact' | 'agent' | 'system';
+  sender: 'contact' | 'agent' | 'human' | 'system';
   body: string;
   external_message_id: string | null;
   delivery_status?: 'sent' | 'failed' | null;

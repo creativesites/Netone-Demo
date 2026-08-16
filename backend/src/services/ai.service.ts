@@ -15,7 +15,7 @@ import { config, flags } from '../config.js';
 import { logger } from '../logger.js';
 import type { AgentTurn, CollectedProfile, LeadAnalysis } from '../types.js';
 import { REQUIRED_FIELDS } from '../types.js';
-import { isNegativeAnswer, isDeclinedAnswer } from './qualification.service.js';
+import { isDeclinedAnswer, wantsFinancingAnswer } from './qualification.service.js';
 import { getKnowledgeContext } from '../db/kb.repo.js';
 
 // Models sometimes return numbers (e.g. budget: 8000) where we want a string.
@@ -119,7 +119,7 @@ Return strictly valid JSON. No markdown.`;
 
 /** Employment/income are only relevant once the prospect has said they want financing. */
 function missingFields(c: CollectedProfile): (keyof CollectedProfile)[] {
-  const wantsFinancing = c.financing ? !isNegativeAnswer(c.financing) : null; // null = not yet known
+  const wantsFinancing = wantsFinancingAnswer(c.financing); // null = not yet known
   return REQUIRED_FIELDS.filter((f) => {
     if ((f === 'employment' || f === 'monthlyIncome') && wantsFinancing === false) return false;
     return !c[f] || String(c[f]).trim() === '';
