@@ -16,6 +16,7 @@ import { inboxRoutes } from './routes/inbox.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
 import { kbRoutes } from './routes/kb.js';
 import { seedKnowledgeBase } from './db/kbSeed.js';
+import { healStuckIngestion } from './db/kb.repo.js';
 
 /** Push current DB state into Firestore so a freshly-opened dashboard is populated. */
 async function seedMirror(): Promise<void> {
@@ -54,6 +55,7 @@ function startStatusHeartbeat(): void {
 async function main() {
   await migrate();
   await seedKnowledgeBase();
+  await healStuckIngestion();
   initFirebase();
 
   const app = Fastify({ logger: false, trustProxy: true });

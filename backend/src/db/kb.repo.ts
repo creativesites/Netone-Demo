@@ -1,5 +1,6 @@
 /** Knowledge base: editable product catalog + simulated document ingestion. */
 import { query } from './pool.js';
+import { logger } from '../logger.js';
 
 export interface KbProduct {
   id: number;
@@ -106,6 +107,19 @@ export async function createDocument(input: {
 
 export async function updateDocumentStatus(id: number, status: 'ingesting' | 'indexed' | 'failed'): Promise<void> {
   await query(`UPDATE kb_documents SET status = $2 WHERE id = $1`, [id, status]);
+}
+
+// createDocument()'s "ingestion" is a simulated in-memory setTimeout — if the
+// backend restarts inside that ~2.5-4.5s window, the doc is left stuck at
+// 'ingesting' forever (no persisted job survives a restart), silently
+// excluded from getKnowledgeContext() with no way to recover from the UI.
+// Since ingestion has no real processing risk, self-heal any leftovers on
+// every startup rather than requiring someone to notice and re-add the doc.
+export async function healStuckIngestion(): Promise<void> {
+  const res = await query(`UPDATE kb_documents SET status = 'indexed' WHERE status = 'ingesting' RETURNING id`);
+  if ((res.rowCount ?? 0) > 0) {
+    logger.info({ count: res.rowCount }, 'Healed KB documents stuck in ingesting from a previous run');
+  }
 }
 
 export async function deleteDocument(id: number): Promise<void> {

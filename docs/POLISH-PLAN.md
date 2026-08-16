@@ -22,7 +22,7 @@ demo script, discovery questions, and documentation deliverables).
 | 1 | Reliability fixes found in audit | ✅ Done |
 | 2 | Hero journey end-to-end verification | ✅ Done (real live test) |
 | 3 | Conversational flow improvements | ✅ Done |
-| 4 | Knowledge-base correctness | 🔲 Not started |
+| 4 | Knowledge-base correctness | ✅ Done (real live test) |
 | 5 | Qualification / scoring / risk / routing verification | 🔲 Not started |
 | 6 | Bitrix create/update/enrichment verification | 🔲 Not started |
 | 7 | Human handoff | 🔲 Not started |
@@ -328,3 +328,74 @@ null the whole conversation while the card still showed the generic
 
 Test artifacts removed after verification, test Postgres role/db dropped,
 service stopped — nothing test-only committed.
+
+### Leads UI — clickable leads, leads table, single-lead page (✅ done, 2026-08-16)
+User-requested, not a numbered phase but landed between Phase 3 and 4:
+
+- Every lead is now clickable. `RecentLeads` rows and the dashboard's
+  "Current Lead" panel both link through to `/leads/[id]` instead of being
+  static.
+- New `/leads` page: a searchable/filterable table (name, phone, product,
+  location search; qualification-status filter) of every lead, each row
+  linking to its detail page.
+- New `/leads/[id]` page: reuses `LeadDetail` + `Timeline`, adds a
+  "Collected profile" checklist and the original inbound message.
+- "Export to Excel" on `/leads` is a dependency-free CSV (Excel opens it
+  natively) rather than the `xlsx` npm package — `xlsx` carries two
+  unpatched high-severity CVEs (prototype pollution, ReDoS) with no fix
+  available; not worth adding for a write-only use case when a
+  zero-dependency alternative exists. CSV cells are guarded against
+  formula injection (leading `=`/`+`/`-`/`@`) since the export includes
+  customer-provided text.
+- Backend: `/api/leads` accepts an optional `?limit=` (default 50, capped
+  at 1000) so the leads table can pull more than the dashboard's usual 50.
+
+**Verification:** clean `tsc` and production build for both new routes.
+Real Chromium browser screenshots were not obtainable in this sandbox — a
+reproducible Chromium↔localhost networking issue specific to this
+environment (confirmed via extensive isolation testing to be unrelated to
+the app: the same backend API and static assets loaded fine via
+Playwright, a minimal chunked-transfer test server loaded fine, and the
+Next.js dev server's own access log showed it correctly answering
+Playwright's requests with `200` — the reset happens on the response
+delivery back to that one browser process, not in the app). Verified
+instead via: real seeded leads (through the actual pipeline, real
+DeepSeek) confirmed correct via the backend API; full SSR HTML for both
+routes inspected directly and confirmed correct — nav "Leads" item active,
+search box, qualification filter, all 8 table columns, Export button,
+back-link — across many repeated real requests with zero server errors in
+the dev log.
+
+### Phase 4 — Knowledge-base correctness (✅ done, verified live, 2026-08-16)
+Read `kb.repo.ts`, `kb.ts` routes, `ProductsTab`/`DocumentsTab`, and how
+`getKnowledgeContext()` feeds `ai.service.ts::converse()`. Findings:
+
+- **Already correct:** `getKnowledgeContext()` queries products/documents
+  live from Postgres on every single conversational turn — no caching
+  layer anywhere, so an admin edit/delete is reflected on the very next
+  message. Verified live (real DeepSeek): added a fictional product ("NEO
+  UltraSlim Z9", K47,321, distinctive specs no model could know from
+  training) via the KB API, asked Nia about it — she quoted the exact
+  price and specs. Asked about a product that doesn't exist in the KB —
+  she correctly declined to invent a price/spec and deferred to a sales
+  rep, per the prompt's rule 7. Deleted the product, asked again — the
+  price was no longer quoted at all. All three behaviors correct.
+- **Bug found and fixed:** `POST /api/kb/documents`' simulated ingestion
+  pipeline flips a new document from `ingesting` → `indexed` via an
+  in-memory `setTimeout` (2.5–4.5s later). If the backend process restarts
+  inside that window — plausible during a live demo where the backend
+  might get restarted — the document is orphaned at `ingesting` forever
+  (no persisted job survives a restart), silently excluded from
+  `getKnowledgeContext()` with no way to recover except deleting and
+  re-adding it. Fixed with `kb.repo.ts::healStuckIngestion()`, called once
+  at server startup: sweeps any document still `ingesting` to `indexed`
+  (safe since ingestion has no real processing/failure risk — it's
+  simulated). Verified live: inserted a document directly at `ingesting`
+  (bypassing the route's timeout, simulating a restart mid-ingestion),
+  confirmed it stayed stuck until `healStuckIngestion()` ran, then
+  confirmed it flipped to `indexed` and immediately appeared in
+  `getKnowledgeContext()`.
+- Reviewed `ProductsTab`/`DocumentsTab` CRUD UI — straightforward,
+  correctly wired to the backend, no correctness issues found.
+
+Test artifacts (test Postgres role/db) removed after verification.
