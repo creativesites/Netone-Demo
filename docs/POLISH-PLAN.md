@@ -30,7 +30,7 @@ demo script, discovery questions, and documentation deliverables).
 | 9 | Source/channel architecture (attribution fields) | ✅ Done (real live test) |
 | 10 | Persistence/realtime/error hardening + backend API auth | 🔲 Not started |
 | 11 | Testing | 🔲 Not started |
-| 12 | CEO-demo polish | 🔲 Not started |
+| 12 | CEO-demo polish | ✅ Done (first pass) |
 | 13 | Documentation (`docs/*.md`) | 🔲 Not started |
 
 Update the emoji + a one-line note per phase as work lands. Nothing later
@@ -649,3 +649,48 @@ Promo'`) correctly persisted `source: "Facebook — August Laptop Promo"`,
 confirming the override path works end to end. `tsc` and `npm run build`
 clean for both backend and frontend. Test artifacts (test Postgres
 role/db) removed after verification.
+
+### Phase 12 — CEO-demo polish, first pass (✅ done, 2026-08-16)
+Skipped ahead from Phase 9 at the user's request (Phases 10-11 not yet
+started — noted below). Scope: make sure everything built in this
+session's earlier phases is actually *visible* to someone walking through
+the demo, not just present in the code.
+
+- **Guided tour was silently missing the two biggest features added this
+  session.** `GuidedTour.tsx`'s step list never mentioned `/leads` or
+  `/analytics` — both nav items existed (with `data-tour` anchors already
+  in place) but the tour walked straight past them. Added two steps in a
+  narrative position that tells a coherent story to a CEO: single-lead
+  reasoning (already existed) → every lead in one place → the aggregate
+  business view → conversation-level detail. Also updated the inbox tour
+  step's copy to mention human handoff now that it's a real behavior.
+- **Help page's "what to look for" list predated half of this session's
+  work.** Added entries for Leads (search/filter/export), Analytics, and
+  Human handoff — previously undiscoverable unless someone happened to
+  click the new nav items.
+- **About page's "what's live vs. roadmap" list had gone stale and was
+  actively wrong.** "Campaign / source attribution" was listed as
+  roadmap — Phase 9 made real channel/source attribution live earlier
+  the same session. Split it more precisely: "Channel & source
+  attribution" (real, live) vs. "Campaign-level attribution (UTM, ad
+  click-through)" (still roadmap — the override plumbing works, but no
+  real ad-platform integration exists yet to populate it). Added "Leads
+  table, search & Excel export", "Management analytics", and "Human
+  handoff (manual takeover)" as new live rows. Tightened the vague
+  "management gets a live view" capability bullet to specifically
+  describe the new Analytics page.
+
+**Verification:** `tsc` and `npm run build` clean. Server-rendered HTML
+for `/help` and `/about` inspected directly and confirmed the new copy
+(Leads/Analytics/Human handoff entries, corrected roadmap rows) is
+actually present, with no server errors in the dev log across all three
+pages checked.
+
+**Not done in this pass** (explicitly out of scope per the user's
+request — Phases 10 and 11 not started): backend API auth, broader
+persistence/error-hardening review, and a test suite. Also identified but
+deliberately not built without being asked: a "reset demo data" control —
+worth having before a live demo accumulates stale test leads, but a
+destructive data-clearing feature deserves its own careful pass (confirm-
+before-delete UX, scoping what counts as "demo" vs. real data) rather than
+being rushed in alongside everything else this session.

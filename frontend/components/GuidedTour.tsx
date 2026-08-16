@@ -33,9 +33,19 @@ const steps: Step[] = [
     content: 'Qualification score, the credit-risk read, and the recommended next action — all with the "why" attached, not just a verdict.',
   },
   {
+    target: '[data-tour="nav-leads"]',
+    title: 'Every lead, one table',
+    content: 'Search, filter by qualification, click through to any full profile, or export the whole list to Excel for a sales meeting.',
+  },
+  {
+    target: '[data-tour="nav-analytics"]',
+    title: 'The business view',
+    content: 'Conversion rate, credit-risk distribution, top products, lead volume over time — real numbers computed live from the database, built for whoever runs the sales team.',
+  },
+  {
     target: '[data-tour="nav-inbox"]',
     title: 'Full conversation view',
-    content: 'See every message thread, reply manually, and inspect the same intelligence panel per conversation.',
+    content: 'See every message thread, reply manually — Nia automatically pauses for that chat once you do, until you resume her — and inspect the same intelligence panel per conversation.',
   },
   {
     target: '[data-tour="nav-knowledge"]',

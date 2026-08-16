@@ -14,6 +14,9 @@ import {
   BookOpen,
   SlidersHorizontal,
   ArrowRight,
+  Users,
+  BarChart3,
+  UserCheck,
 } from 'lucide-react';
 import { useWhatsAppStatus, displayWaNumber } from '@/lib/useWhatsAppStatus';
 
@@ -105,6 +108,21 @@ const LOOK_FOR = [
     Icon: SlidersHorizontal,
     title: 'Qualification Rules',
     body: 'Change a weight or an employment-type multiplier, then send another test message — the score reacts immediately.',
+  },
+  {
+    Icon: Users,
+    title: 'Leads',
+    body: 'Every lead the pipeline has qualified, searchable and filterable. Export the current view to Excel from the top-right button.',
+  },
+  {
+    Icon: BarChart3,
+    title: 'Analytics',
+    body: 'The management view — conversion rate, credit-risk distribution, top products, lead volume over time. Every number is computed live, nothing simulated.',
+  },
+  {
+    Icon: UserCheck,
+    title: 'Human handoff',
+    body: 'Send a manual reply from the Inbox and Nia pauses automatically for that chat — a "Resume AI" button hands it back to her when you\'re done.',
   },
 ];
 

@@ -157,8 +157,8 @@ export default function AboutPage() {
             </li>
             <li className="flex items-start gap-2">
               <BarChart3 size={15} className="mt-0.5 shrink-0 text-brand-500" />
-              Management gets a live view of enquiries, qualification outcomes and CRM sync status as they
-              happen.
+              A dedicated Analytics view gives management conversion rate, credit-risk distribution, product
+              demand and lead volume — computed live from the same database, not a separate reporting layer.
             </li>
           </ul>
         </div>
@@ -171,8 +171,12 @@ export default function AboutPage() {
             <StatusRow label="Configurable qualification rules" live />
             <StatusRow label="Bitrix24 lead sync" live />
             <StatusRow label="Real-time inbox &amp; dashboard" live />
+            <StatusRow label="Leads table, search &amp; Excel export" live />
+            <StatusRow label="Management analytics" live />
+            <StatusRow label="Channel &amp; source attribution" live />
+            <StatusRow label="Human handoff (manual takeover)" live />
             <StatusRow label="Facebook &amp; Instagram channels" live={false} />
-            <StatusRow label="Campaign / source attribution" live={false} />
+            <StatusRow label="Campaign-level attribution (UTM, ad click-through)" live={false} />
             <StatusRow label="Automated follow-up escalation" live={false} />
             <StatusRow label="AI assist for sales reps" live={false} />
           </div>
