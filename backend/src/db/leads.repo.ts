@@ -3,6 +3,31 @@ import { query } from './pool.js';
 import type { Lead, LeadAnalysis, NormalizedLeadEvent } from '../types.js';
 import type { QualificationResult } from '../services/qualification.service.js';
 
+// Channel-agnostic pipeline: WhatsApp is the only channel wired up today,
+// but `source` must reflect the real channel a lead arrived on rather than
+// a hardcoded label — a Bitrix comment or CRM record that says "Social /
+// Demo" on every single lead reads as fake, not production-ready. Channel
+// adapters already pass through arbitrary extra data via `event.metadata`
+// (see whatsapp.adapter.ts), so a future channel (Meta Lead Ads, a web
+// contact form with UTM params, etc.) can supply a real campaign/referrer
+// value here with zero pipeline changes — it just needs to land in
+// metadata.source / metadata.utm_source / metadata.campaign.
+const CHANNEL_SOURCE_LABEL: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  web: 'Website',
+};
+
+function deriveSource(event: NormalizedLeadEvent): string {
+  const meta = event.metadata as Record<string, unknown>;
+  const override = [meta?.source, meta?.campaign, meta?.utm_source]
+    .find((v): v is string => typeof v === 'string' && v.trim().length > 0);
+  const base = CHANNEL_SOURCE_LABEL[event.channel] ?? event.channel;
+  return override ? `${base} — ${override.trim()}` : base;
+}
+
 /** Returns true if this message is new (claimed), false if already processed. */
 export async function claimMessage(channel: string, externalMessageId: string): Promise<boolean> {
   const res = await query(
@@ -62,7 +87,7 @@ export async function upsertLead(
     [
       event.externalContactId,
       event.channel,
-      'Social / Demo',
+      deriveSource(event),
       event.name,
       event.phone,
       event.message,

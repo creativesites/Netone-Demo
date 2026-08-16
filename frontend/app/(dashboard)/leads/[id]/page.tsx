@@ -7,6 +7,7 @@ import { ArrowLeft, Check, Circle } from 'lucide-react';
 import { useRealtimeDoc, apiGet } from '@/lib/realtime';
 import { LeadDetail } from '@/components/LeadDetail';
 import { Timeline } from '@/components/Timeline';
+import { channelLabel } from '@/lib/channel';
 import type { Lead, LeadEvent } from '@/lib/types';
 
 const PROFILE_FIELDS: { key: keyof NonNullable<Lead['collected']>; label: string }[] = [
@@ -84,7 +85,7 @@ export default function LeadPage() {
               <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">Original message</div>
               <p className="text-sm italic text-ink-700">&ldquo;{lead.initial_message}&rdquo;</p>
               <div className="mt-2 text-[11px] text-ink-400">
-                {new Date(lead.created_at).toLocaleString()} · via {lead.channel}
+                {new Date(lead.created_at).toLocaleString()} · via {channelLabel(lead.channel)}
               </div>
             </div>
           </div>

@@ -27,7 +27,7 @@ demo script, discovery questions, and documentation deliverables).
 | 6 | Bitrix create/update/enrichment verification | ✅ Done (real live test) |
 | 7 | Human handoff | ✅ Done (real live test) |
 | 8 | Management visibility (real-data analytics) | ✅ Done (real live test) |
-| 9 | Source/channel architecture (attribution fields) | 🔲 Not started |
+| 9 | Source/channel architecture (attribution fields) | ✅ Done (real live test) |
 | 10 | Persistence/realtime/error hardening + backend API auth | 🔲 Not started |
 | 11 | Testing | 🔲 Not started |
 | 12 | CEO-demo polish | 🔲 Not started |
@@ -603,3 +603,49 @@ present and correct), plus a regression check that `/leads`, `/`, and
 `/inbox` still render cleanly. `tsc` and `npm run build` clean throughout.
 Test artifacts (seeded rows, test Postgres role/db) removed after
 verification.
+
+### Phase 9 — Source/channel architecture (attribution fields) (✅ done, verified live, 2026-08-16)
+The pipeline is already genuinely channel-agnostic at the type/adapter
+level (`NormalizedLeadEvent` + `ChannelAdapter` interface, `Channel` type
+already lists whatsapp/facebook/instagram/tiktok/web) — but the actual
+*attribution data* was fake. Found and fixed:
+
+- **`leads.source` was a hardcoded literal `'Social / Demo'` for every
+  single lead, regardless of channel.** It showed up verbatim in the real
+  Bitrix CRM comment and the lead detail page — a red flag for a CEO
+  inspecting an actual CRM record, and it threw away the one piece of
+  attribution data the system already has (which channel the lead came
+  from). Fixed with `deriveSource()` in `leads.repo.ts`: a clean per-
+  channel label ("WhatsApp", "Facebook", …) by default, with a real
+  campaign/referrer override when the channel/event metadata supplies one
+  (`metadata.source` / `metadata.campaign` / `metadata.utm_source` — no
+  new schema needed, `NormalizedLeadEvent.metadata` already passes
+  arbitrary channel-specific data straight through). Forward-compatible
+  with zero pipeline changes once a real Meta Lead Ads webhook or a web
+  contact form with UTM params is wired up as a second channel adapter —
+  it only needs to populate `metadata.source`/`utm_source`.
+- **The inbox thread header hardcoded "WhatsApp" regardless of the
+  conversation's actual `channel` field.** Same class of bug as `source`
+  — the data already existed (`conversation.channel`), the UI just wasn't
+  using it. New shared `frontend/lib/channel.ts::channelLabel()` used
+  consistently everywhere a channel is displayed: the inbox thread header,
+  `LeadDetail`, `RecentLeads`, the leads table (which also gained a
+  `Channel` column it was missing — it claims "across every channel" in
+  its own subtitle but never actually showed one), the single-lead page,
+  and the Excel/CSV export (which also gained a `Source` column).
+- Deliberately did **not** stub fake Facebook/Instagram/TikTok/Web adapter
+  files with no real API behind them — that would be decorative,
+  non-functional code pretending to be more built than it is. The
+  channel-agnostic contract (`ChannelAdapter`, `NormalizedLeadEvent`) is
+  already real and already extensible; what was fake was the attribution
+  *data* flowing through it for the one channel that's actually wired up,
+  which is now fixed.
+
+**Verification:** live pipeline run (real Postgres, real DeepSeek) — a
+plain WhatsApp message with no campaign metadata correctly persisted
+`source: "WhatsApp"` (not "Social / Demo"); a simulated future-channel
+event (`channel: 'facebook'`, `metadata.utm_source: 'August Laptop
+Promo'`) correctly persisted `source: "Facebook — August Laptop Promo"`,
+confirming the override path works end to end. `tsc` and `npm run build`
+clean for both backend and frontend. Test artifacts (test Postgres
+role/db) removed after verification.

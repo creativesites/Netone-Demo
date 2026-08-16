@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ExternalLink, Check, X, Clock, PhoneCall } from 'lucide-react';
 import type { Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
+import { channelLabel } from '@/lib/channel';
 import { LeadScoreCard } from './LeadScoreCard';
 import { CreditRiskBadge } from './CreditRiskBadge';
 
@@ -64,7 +65,7 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Channel" value={<span className="capitalize">{lead.channel}</span>} />
+        <Field label="Channel" value={channelLabel(lead.channel)} />
         <Field label="Source" value={lead.source} />
         <Field label="Product" value={lead.product ?? '—'} />
         <Field label="Financing" value={lead.financing_interest ? <span className="text-emerald-600">Yes</span> : <span className="text-ink-500">No</span>} />

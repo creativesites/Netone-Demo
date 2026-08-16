@@ -6,6 +6,7 @@ import { Download, Search } from 'lucide-react';
 import { useRealtimeCollection } from '@/lib/realtime';
 import { exportLeadsToExcel } from '@/lib/exportLeads';
 import { bitrixLeadUrl } from '@/lib/bitrix';
+import { channelLabel } from '@/lib/channel';
 import { CreditRiskBadge } from '@/components/CreditRiskBadge';
 import type { Lead } from '@/lib/types';
 
@@ -108,6 +109,7 @@ export default function LeadsPage() {
             <thead>
               <tr className="border-b border-line bg-surface-muted text-[11px] uppercase tracking-wide text-ink-400">
                 <th className="px-4 py-3 font-semibold">Contact</th>
+                <th className="px-4 py-3 font-semibold">Channel</th>
                 <th className="px-4 py-3 font-semibold">Product</th>
                 <th className="px-4 py-3 font-semibold">Intent</th>
                 <th className="px-4 py-3 font-semibold">Qualification</th>
@@ -120,7 +122,7 @@ export default function LeadsPage() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-ink-500">
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-ink-500">
                     {leads.length === 0 ? 'No leads yet.' : 'No leads match your search.'}
                   </td>
                 </tr>
@@ -134,6 +136,11 @@ export default function LeadsPage() {
                         <Link href={`/leads/${l.id}`} className="block px-4 py-3">
                           <div className="font-medium text-ink-800">{l.name ?? l.phone ?? 'Unknown'}</div>
                           <div className="text-[11px] text-ink-400">{l.phone ?? ''}</div>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link href={`/leads/${l.id}`} className="block text-ink-500">
+                          {channelLabel(l.channel)}
                         </Link>
                       </td>
                       <td className="px-4 py-3">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Bot, User, AlertTriangle, ArrowLeft, UserCheck, RotateCcw } from 'lucide-react';
 import type { ChatMessage, Conversation } from '@/lib/types';
+import { channelLabel } from '@/lib/channel';
 
 function fmt(iso: string) {
   try {
@@ -86,7 +87,7 @@ export function MessageThread({
           )}
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-ink-900">{conversation.contact_name ?? conversation.phone}</div>
-            <div className="text-[11px] text-ink-500">{conversation.phone} · WhatsApp</div>
+            <div className="text-[11px] text-ink-500">{conversation.phone} · {channelLabel(conversation.channel)}</div>
           </div>
         </div>
         {conversation.is_lead && (

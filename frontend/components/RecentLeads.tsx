@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
+import { channelLabel } from '@/lib/channel';
 
 function dot(q: string | null) {
   if (q === 'qualified') return 'bg-emerald-500';
@@ -66,7 +67,7 @@ export function RecentLeads({ leads }: { leads: Lead[] }) {
                   ) : (
                     <span className="text-[10px] text-ink-400">—</span>
                   )}
-                  <div className="mt-0.5 text-[10px] capitalize text-ink-400">{l.channel}</div>
+                  <div className="mt-0.5 text-[10px] text-ink-400">{channelLabel(l.channel)}</div>
                 </div>
               </Link>
             </li>

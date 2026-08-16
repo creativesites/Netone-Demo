@@ -1,10 +1,12 @@
 import type { Lead } from './types';
+import { channelLabel } from './channel';
 
 const COLUMNS: { header: string; get: (l: Lead) => string }[] = [
   { header: 'ID', get: (l) => String(l.id) },
   { header: 'Name', get: (l) => l.name ?? '' },
   { header: 'Phone', get: (l) => l.phone ?? '' },
-  { header: 'Channel', get: (l) => l.channel },
+  { header: 'Channel', get: (l) => channelLabel(l.channel) },
+  { header: 'Source', get: (l) => l.source ?? '' },
   { header: 'Product', get: (l) => l.product ?? '' },
   { header: 'Purchase Intent', get: (l) => l.purchase_intent ?? '' },
   { header: 'Financing Interest', get: (l) => (l.financing_interest ? 'Yes' : 'No') },
