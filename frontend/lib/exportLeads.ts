@@ -9,7 +9,7 @@ const COLUMNS: { header: string; get: (l: Lead) => string }[] = [
   { header: 'Purchase Intent', get: (l) => l.purchase_intent ?? '' },
   { header: 'Financing Interest', get: (l) => (l.financing_interest ? 'Yes' : 'No') },
   { header: 'Qualification', get: (l) => (l.qualification_status ?? '').replace(/_/g, ' ') },
-  { header: 'Score', get: (l) => (l.score ?? '') as string },
+  { header: 'Score', get: (l) => (l.score != null ? String(l.score) : '') },
   { header: 'Credit Risk', get: (l) => l.credit_risk ?? '' },
   { header: 'Employment', get: (l) => l.collected?.employment ?? '' },
   { header: 'Monthly Income', get: (l) => l.collected?.monthlyIncome ?? '' },
@@ -43,8 +43,16 @@ export function exportLeadsToExcel(leads: Lead[], filename = 'netone-leads.csv')
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.rel = 'noopener';
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Revoking the object URL synchronously, in the same tick as the click,
+  // races the browser's actual download-start in some engines (Firefox
+  // especially) and can silently kill the download with no visible error —
+  // defer cleanup so the browser has a chance to begin reading the blob first.
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 0);
 }
