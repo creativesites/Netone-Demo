@@ -694,3 +694,49 @@ worth having before a live demo accumulates stale test leads, but a
 destructive data-clearing feature deserves its own careful pass (confirm-
 before-delete UX, scoping what counts as "demo" vs. real data) rather than
 being rushed in alongside everything else this session.
+
+### Help page — full self-guided rewrite for CEO/client demo (✅ done, 2026-08-17)
+User request: make the Help page a complete, self-guided demo script —
+someone who has never seen the system should be able to run the whole
+WhatsApp → AI qualification → Bitrix24 demo without anyone explaining it
+live, including independently inspecting the resulting lead in a sandbox
+Bitrix24 the user provided credentials for.
+
+Full rewrite of `frontend/app/(dashboard)/help/page.tsx` (previous
+version was a lighter "try these messages" page) into 10 numbered
+sections plus a Start Here block and table of contents: the complete
+8-stage flow (Customer → WhatsApp → platform → AI understanding →
+business rules → lead creation → Bitrix24 → sales follow-up), a 6-step
+walkthrough (open dashboard → find the connected WhatsApp number → send
+a test message → watch the dashboard → observe qualification → open
+Bitrix24), what to look for in the Bitrix24 lead record, the
+AI-vs-rules distinction (with a worked extraction example), a link to
+the Rules page split into currently-demonstrated vs. proposed
+capability, a currently-demonstrated vs. potential-production-channels
+comparison, three demo scenarios with expected outcomes, a presentation
+tip list, a prominent demo disclaimer, and troubleshooting for the three
+likely failure points (WhatsApp not appearing, lead not syncing, AI
+provider down). Every field/capability listed was checked against the
+actual implementation (`bitrix24.adapter.ts`'s real comment-line fields,
+the real qualification-rules page, the real human-handoff/leads/
+analytics features from this session) — nothing invented.
+
+**Demo Bitrix24 credentials**, per explicit instruction, are hardcoded
+directly as a constant inside this one page file — not a `NEXT_PUBLIC_*`
+env var (would be unnecessary indirection for something meant to be
+human-visible on exactly one page), not a backend route, not logged, not
+shown on the dashboard or in the Inbox. Displayed in a visually distinct
+"Demo credentials — demo environment only" box with per-field
+copy-to-clipboard, plus a direct "Open Bitrix24" link. Confirmed via
+`grep` across the whole repo that the credential strings appear nowhere
+else in source (only in this file and its own `.next` build output,
+which is git-ignored). A prominent amber disclaimer (top of page and its
+own section) states this is a sandbox/demo environment, not NetOne's
+production CRM or WhatsApp, and that no real customer data should be
+entered.
+
+**Verification:** `tsc` and `npm run build` clean, zero lint warnings.
+Live dev server SSR-checked: all 10 section headings, the Start Here
+block, and all three credential values confirmed present in the rendered
+HTML; regression-checked `/`, `/about`, and `/leads` still render
+cleanly. No credential leakage found anywhere else in the codebase.
