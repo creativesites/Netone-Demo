@@ -9,7 +9,8 @@
  * qualification and financing-partner criteria (see settings.repo.ts /
  * /api/settings/qualification-rules).
  */
-import type { CollectedProfile, LeadAnalysis, Qualification, ScoreCriterionResult } from '../types.js';
+import type { CollectedProfile, LeadAnalysis, Qualification, QualificationStage, ScoreCriterionResult } from '../types.js';
+import { DEFAULT_QUALIFICATION_FIELDS, EMPLOYMENT_TYPE_TO_CATEGORY, type QualificationField } from './fields.service.js';
 
 export interface QualificationCriterionRule {
   key: 'purchaseIntent' | 'product' | 'financing' | 'location' | 'contact' | 'employment' | 'monthlyIncome' | 'budget';
@@ -109,10 +110,24 @@ export function canonicalizeEmployment(raw: string | null): EmploymentCategory |
   return 'informally_employed';
 }
 
+/** Single source of truth for "which credit-risk employment category does
+ *  this lead fall into" — prefers the structured employmentType (exact,
+ *  from the Zambia-specific field registry) once the conversation collects
+ *  it, falling back to the free-text keyword read otherwise. Both the
+ *  score breakdown and the credit-risk badge must use this same resolution
+ *  or they can silently disagree (the same class of bug fixed earlier for
+ *  wantsFinancingAnswer). */
+export function resolveEmploymentCategory(collected: Pick<CollectedProfile, 'employment' | 'employmentType'>): EmploymentCategory | 'declined' | null {
+  if (collected.employmentType) {
+    return EMPLOYMENT_TYPE_TO_CATEGORY[collected.employmentType] ?? canonicalizeEmployment(collected.employment);
+  }
+  return canonicalizeEmployment(collected.employment);
+}
+
 export type CreditRisk = 'low' | 'medium' | 'high' | 'ineligible' | 'unknown';
 
-export function creditRiskTier(raw: string | null, weights: Record<EmploymentCategory, number>): CreditRisk {
-  const category = canonicalizeEmployment(raw);
+export function creditRiskTier(collected: Pick<CollectedProfile, 'employment' | 'employmentType'>, weights: Record<EmploymentCategory, number>): CreditRisk {
+  const category = resolveEmploymentCategory(collected);
   if (!category || category === 'declined') return 'unknown';
   const w = weights[category] ?? 0;
   if (w <= 0) return 'ineligible';
@@ -126,6 +141,8 @@ export interface QualificationRules {
   qualifiedThreshold: number; // score >= this → qualified
   followUpThreshold: number; // score >= this (and below qualifiedThreshold) → needs_follow_up
   employmentWeights: Record<EmploymentCategory, number>;
+  // The discovery field registry — sample/demo config, see fields.service.ts.
+  fields: QualificationField[];
 }
 
 export const DEFAULT_QUALIFICATION_RULES: QualificationRules = {
@@ -142,15 +159,64 @@ export const DEFAULT_QUALIFICATION_RULES: QualificationRules = {
   qualifiedThreshold: 70,
   followUpThreshold: 40,
   employmentWeights: DEFAULT_EMPLOYMENT_WEIGHTS,
+  fields: DEFAULT_QUALIFICATION_FIELDS,
 };
 
 export interface QualificationResult {
   qualification: Qualification;
+  stage: QualificationStage;
   assignedTo: string;
   nextAction: string;
   score: number;
   breakdown: ScoreCriterionResult[];
   creditRisk: CreditRisk;
+  discoveryPercentage: number;
+}
+
+/**
+ * The full lead lifecycle state machine. discoveryPercentage comes from
+ * discovery.service.ts::computeDiscovery(), computed by the caller (this
+ * function only maps outcomes — see lead.service.ts for the call order).
+ * convertedAt is the one manual, human-set fact: a rep marking a
+ * SALES_READY lead as closed. Every other transition is deterministic.
+ *
+ *   NEW ──────────────▶ DISCOVERING ──┬─▶ NEEDS_REVIEW   (customer declined
+ *                                      │                   a required answer)
+ *                                      └─▶ QUALIFICATION_PENDING (100%
+ *                                          discovery, score still borderline)
+ *   DISQUALIFIED  ◀── (unqualified, any point)
+ *   QUALIFIED ────────▶ SALES_READY   (qualified + 100% discovery)
+ *   SALES_READY ──────▶ CONVERTED     (manual only)
+ */
+function hasAnyDecline(collected: CollectedProfile): boolean {
+  return [collected.financing, collected.employment, collected.monthlyIncome, collected.location]
+    .some((v) => isDeclinedAnswer(v ?? null));
+}
+
+export function deriveStage(
+  qualification: Qualification,
+  discoveryPercentage: number,
+  collected: CollectedProfile,
+  convertedAt: string | null
+): QualificationStage {
+  if (convertedAt) return 'CONVERTED';
+
+  if (qualification === 'unqualified') {
+    // Nothing worth pursuing yet vs. actively ruled out — a lead that's
+    // just arrived with no real signal reads as NEW, not DISQUALIFIED.
+    return discoveryPercentage <= 0 ? 'NEW' : 'DISQUALIFIED';
+  }
+
+  if (qualification === 'needs_follow_up') {
+    if (discoveryPercentage >= 100) return 'QUALIFICATION_PENDING';
+    // A customer who declined a required question can't be moved forward
+    // by more automated discovery — that needs a human, not another
+    // question from Nia.
+    return hasAnyDecline(collected) ? 'NEEDS_REVIEW' : 'DISCOVERING';
+  }
+
+  // qualification === 'qualified'
+  return discoveryPercentage >= 100 ? 'SALES_READY' : 'QUALIFIED';
 }
 
 export function isNegativeAnswer(v: string | null): boolean {
@@ -181,6 +247,21 @@ export function wantsFinancingAnswer(financing: string | null): boolean | null {
   if (cashWords.some((w) => t.includes(w))) return false;
   if (isNegativeAnswer(financing)) return false;
   return true;
+}
+
+/** Single source of truth for "does this customer want financing" — prefers
+ *  the structured purchaseMethod field once the conversation collects it
+ *  directly, falling back to the free-text financing read (above) so
+ *  leads collected before purchaseMethod existed keep working. Used by
+ *  both the discovery engine (field relevance) and qualify() (routing). */
+export function resolvePurchaseMethod(collected: Pick<CollectedProfile, 'financing' | 'purchaseMethod'>): 'cash' | 'financing' | 'unsure' | null {
+  if (collected.purchaseMethod === 'cash' || collected.purchaseMethod === 'financing' || collected.purchaseMethod === 'unsure') {
+    return collected.purchaseMethod;
+  }
+  const answer = wantsFinancingAnswer(collected.financing);
+  if (answer === true) return 'financing';
+  if (answer === false) return 'cash';
+  return null;
 }
 
 function evalCriterion(
@@ -226,7 +307,7 @@ function evalCriterion(
         met = true;
         break;
       }
-      const category = canonicalizeEmployment(collected.employment);
+      const category = resolveEmploymentCategory(collected);
       // Declined: we got an answer (met), but no usable risk signal (0 points) —
       // never silently treated as "informally employed" just because they
       // chose not to say.
@@ -249,7 +330,9 @@ export function qualify(
   analysis: LeadAnalysis,
   collected: CollectedProfile,
   hasPhone: boolean,
-  rules: QualificationRules = DEFAULT_QUALIFICATION_RULES
+  rules: QualificationRules = DEFAULT_QUALIFICATION_RULES,
+  discoveryPercentage = 0,
+  convertedAt: string | null = null
 ): QualificationResult {
   // The customer's own confirmed answer is authoritative once given — only
   // fall back to the gatekeeper's per-message read while nothing's been
@@ -264,7 +347,7 @@ export function qualify(
   const maxScore = rules.criteria.reduce((sum, r) => sum + r.weight, 0) || 1;
   const rawScore = breakdown.reduce((sum, b) => sum + b.earned, 0);
   const score = Math.round((rawScore / maxScore) * 100);
-  const risk = creditRiskTier(collected.employment, rules.employmentWeights);
+  const risk = creditRiskTier(collected, rules.employmentWeights);
 
   let qualification: Qualification;
   if (analysis.intent === 'complaint') {
@@ -302,5 +385,7 @@ export function qualify(
     nextAction = 'Monitor / no immediate action';
   }
 
-  return { qualification, assignedTo, nextAction, score, breakdown, creditRisk: risk };
+  const stage = deriveStage(qualification, discoveryPercentage, collected, convertedAt);
+
+  return { qualification, stage, assignedTo, nextAction, score, breakdown, creditRisk: risk, discoveryPercentage };
 }

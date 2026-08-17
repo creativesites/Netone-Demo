@@ -20,7 +20,16 @@ function isValidRules(body: unknown): body is QualificationRules {
     typeof b.followUpThreshold === 'number' &&
     !!b.employmentWeights &&
     typeof b.employmentWeights === 'object' &&
-    Object.values(b.employmentWeights).every((w) => typeof w === 'number')
+    Object.values(b.employmentWeights).every((w) => typeof w === 'number') &&
+    Array.isArray(b.fields) &&
+    b.fields.every(
+      (f) =>
+        typeof f.key === 'string' &&
+        typeof f.label === 'string' &&
+        typeof f.category === 'string' &&
+        typeof f.required === 'boolean' &&
+        typeof f.order === 'number'
+    )
   );
 }
 

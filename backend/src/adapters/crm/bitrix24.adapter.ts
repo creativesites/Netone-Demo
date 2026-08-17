@@ -5,22 +5,40 @@
  */
 import { config, flags } from '../../config.js';
 import { logger } from '../../logger.js';
-import type { CollectedProfile, Lead, LeadAnalysis, Qualification } from '../../types.js';
+import type { CollectedProfile, Lead, LeadAnalysis, QualificationStage } from '../../types.js';
 import type { CRMAdapter, CreateLeadResult } from './crm.adapter.js';
 
 const TIMEOUT_MS = 12000;
 const MAX_ATTEMPTS = 3;
 
-// Map our qualification to Bitrix's default, always-present lead statuses.
-function statusFor(q: Qualification | null): string {
-  switch (q) {
-    case 'qualified':
-      return 'IN_PROCESS';
-    case 'unqualified':
-      return 'JUNK';
-    default:
-      return 'NEW';
-  }
+// Map the 8-state qualification_stage to Bitrix's default, always-present
+// lead statuses — verified directly against the connected portal's
+// crm.status.list (NEW, IN_PROCESS, PROCESSED, CONVERTED, JUNK; no custom
+// statuses configured), not assumed from memory.
+const STAGE_TO_STATUS_ID: Record<QualificationStage, string> = {
+  NEW: 'NEW',
+  DISCOVERING: 'IN_PROCESS',
+  QUALIFICATION_PENDING: 'IN_PROCESS',
+  QUALIFIED: 'IN_PROCESS',
+  NEEDS_REVIEW: 'IN_PROCESS',
+  SALES_READY: 'PROCESSED',
+  DISQUALIFIED: 'JUNK',
+  CONVERTED: 'CONVERTED',
+};
+
+const STAGE_LABEL: Record<QualificationStage, string> = {
+  NEW: 'New',
+  DISCOVERING: 'Discovering',
+  QUALIFICATION_PENDING: 'Qualification pending',
+  QUALIFIED: 'Qualified',
+  NEEDS_REVIEW: 'Needs review',
+  DISQUALIFIED: 'Disqualified',
+  SALES_READY: 'Sales ready',
+  CONVERTED: 'Converted',
+};
+
+function statusFor(stage: QualificationStage | null): string {
+  return stage ? STAGE_TO_STATUS_ID[stage] : 'NEW';
 }
 
 async function callBitrix(method: string, body: unknown): Promise<any> {
@@ -65,7 +83,7 @@ const CREDIT_RISK_LABEL: Record<string, string> = {
 };
 
 function collectedLines(collected: CollectedProfile): string[] {
-  return [
+  const lines = [
     '',
     'Collected profile:',
     `- Name: ${collected.name ?? '—'}`,
@@ -76,6 +94,17 @@ function collectedLines(collected: CollectedProfile): string[] {
     `- Employment: ${collected.employment ?? '—'}`,
     `- Monthly income: ${collected.monthlyIncome ?? '—'}`,
   ];
+  // Structured Zambia-specific fields — appended only when present, so the
+  // comment stays identical to today's output for leads that only have the
+  // original 7 free-text fields.
+  if (collected.email) lines.push(`- Email: ${collected.email}`);
+  if (collected.purchaseMethod) lines.push(`- Purchase method: ${collected.purchaseMethod}`);
+  if (collected.employmentType) lines.push(`- Employment type: ${collected.employmentType}`);
+  if (collected.province) lines.push(`- Province: ${collected.province}`);
+  if (collected.preferredRepaymentPeriod) lines.push(`- Preferred repayment period: ${collected.preferredRepaymentPeriod}`);
+  if (collected.depositAvailable) lines.push(`- Deposit available: ${collected.depositAvailable}`);
+  if (collected.financingPartner) lines.push(`- Financing partner: ${collected.financingPartner}`);
+  return lines;
 }
 
 // This mirrors the deterministic qualification.service.ts output that's
@@ -88,7 +117,7 @@ function scoreLines(lead: Lead): string[] {
     '',
     'Qualification (NetOne rules engine):',
     `- Score: ${lead.score ?? '—'}/100`,
-    `- Qualification: ${(lead.qualification_status ?? 'pending').replace(/_/g, ' ')}`,
+    `- Stage: ${lead.qualification_stage ? STAGE_LABEL[lead.qualification_stage] : 'New'}`,
   ];
   if (lead.credit_risk && lead.credit_risk !== 'unknown') {
     lines.push(`- Financing eligibility indicator: ${CREDIT_RISK_LABEL[lead.credit_risk] ?? lead.credit_risk}`);
@@ -130,7 +159,7 @@ export const bitrix24Adapter: CRMAdapter = {
       NAME: lead.name ?? undefined,
       SOURCE_ID: 'WEB',
       SOURCE_DESCRIPTION: `NetOne Lead Automation — ${lead.channel}`,
-      STATUS_ID: statusFor(lead.qualification_status),
+      STATUS_ID: statusFor(lead.qualification_stage),
       COMMENTS: commentLines.join('\n'),
       OPENED: 'Y',
     };
@@ -157,7 +186,7 @@ export const bitrix24Adapter: CRMAdapter = {
   async updateLead(crmLeadId: string, lead: Lead, analysis: LeadAnalysis): Promise<boolean> {
     if (!flags.hasBitrix) return false;
     const fields: Record<string, unknown> = {
-      STATUS_ID: statusFor(lead.qualification_status),
+      STATUS_ID: statusFor(lead.qualification_stage),
       COMMENTS: [
         `AI summary: ${analysis.summary}`,
         ...scoreLines(lead),

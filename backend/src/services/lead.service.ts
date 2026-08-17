@@ -17,6 +17,7 @@ import { config } from '../config.js';
 import type { CollectedProfile, NormalizedLeadEvent, PipelineStep, Lead, LeadAnalysis, PurchaseIntent } from '../types.js';
 import { classifyLead, converse } from './ai.service.js';
 import { qualify } from './qualification.service.js';
+import { computeDiscovery } from './discovery.service.js';
 import { bitrix24Adapter } from '../adapters/crm/bitrix24.adapter.js';
 import { getSettings, getQualificationRules } from '../db/settings.repo.js';
 import {
@@ -228,7 +229,15 @@ async function processEventInner(event: NormalizedLeadEvent): Promise<void> {
           monthlyIncome: null,
         };
     const rules = await getQualificationRules();
-    const qual = qualify(analysis, seedCollected, !!event.phone, rules);
+    const discovery = computeDiscovery(rules.fields, seedCollected);
+    const qual = qualify(
+      analysis,
+      seedCollected,
+      !!event.phone,
+      rules,
+      discovery.completionPercentage,
+      existing?.converted_at ?? null
+    );
 
     // ── 5. Persist lead ──────────────────────────────────
     let lead = await upsertLead(event, analysis, qual);
@@ -338,7 +347,15 @@ async function runConversationalAgent(
   // Re-score now that the conversation collected more of the profile — the
   // lead's score/qualification should visibly improve as fields fill in.
   const rules = await getQualificationRules();
-  const qual = qualify(analysis, turn.collected, !!(conv.phone || conv.raw_reply_address), rules);
+  const discovery = computeDiscovery(rules.fields, turn.collected);
+  const qual = qualify(
+    analysis,
+    turn.collected,
+    !!(conv.phone || conv.raw_reply_address),
+    rules,
+    discovery.completionPercentage,
+    lead.converted_at ?? null
+  );
   updatedLead = await updateQualification(lead.id, qual);
   await step(
     correlationId,

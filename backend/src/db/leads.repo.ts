@@ -62,9 +62,9 @@ export async function upsertLead(
   const res = await query<Lead>(
     `INSERT INTO leads (
         external_contact_id, channel, source, name, phone, initial_message,
-        intent, product, financing_interest, purchase_intent, qualification_status,
+        intent, product, financing_interest, purchase_intent, qualification_status, qualification_stage,
         ai_reasoning, ai_summary, ai_source, assigned_to, next_action, score, score_breakdown, credit_risk, bitrix_status
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'pending')
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'pending')
      ON CONFLICT (channel, external_contact_id) DO UPDATE SET
         name = COALESCE(EXCLUDED.name, leads.name),
         phone = COALESCE(EXCLUDED.phone, leads.phone),
@@ -74,6 +74,7 @@ export async function upsertLead(
         financing_interest = EXCLUDED.financing_interest,
         purchase_intent = EXCLUDED.purchase_intent,
         qualification_status = EXCLUDED.qualification_status,
+        qualification_stage = EXCLUDED.qualification_stage,
         ai_reasoning = EXCLUDED.ai_reasoning,
         ai_summary = EXCLUDED.ai_summary,
         ai_source = EXCLUDED.ai_source,
@@ -96,6 +97,7 @@ export async function upsertLead(
       analysis.financingInterest,
       analysis.purchaseIntent,
       qual.qualification,
+      qual.stage,
       analysis.reasoning,
       analysis.summary,
       analysis.aiSource,
@@ -114,14 +116,25 @@ export async function updateQualification(leadId: number, qual: QualificationRes
   const res = await query<Lead>(
     `UPDATE leads SET
         qualification_status = $2,
-        assigned_to = $3,
-        next_action = $4,
-        score = $5,
-        score_breakdown = $6,
-        credit_risk = $7,
+        qualification_stage = $3,
+        assigned_to = $4,
+        next_action = $5,
+        score = $6,
+        score_breakdown = $7,
+        credit_risk = $8,
         updated_at = now()
       WHERE id = $1 RETURNING *`,
-    [leadId, qual.qualification, qual.assignedTo, qual.nextAction, qual.score, JSON.stringify(qual.breakdown), qual.creditRisk]
+    [leadId, qual.qualification, qual.stage, qual.assignedTo, qual.nextAction, qual.score, JSON.stringify(qual.breakdown), qual.creditRisk]
+  );
+  return res.rows[0];
+}
+
+/** Manual, human-only transition — nothing in this pipeline infers a closed deal automatically. */
+export async function markConverted(leadId: number): Promise<Lead> {
+  const res = await query<Lead>(
+    `UPDATE leads SET converted_at = now(), qualification_stage = 'CONVERTED', updated_at = now()
+      WHERE id = $1 RETURNING *`,
+    [leadId]
   );
   return res.rows[0];
 }
@@ -189,6 +202,14 @@ export async function getLeadEvents(leadId: number) {
   return res.rows;
 }
 
+// Rolls the 8-state qualification_stage back up into the 3 legacy buckets
+// these stat tiles have always shown — NEW folds into "unqualified" since
+// it's a subset of that outcome (see deriveStage() in
+// qualification.service.ts: NEW is exactly "unqualified with 0% discovery").
+const STAGE_QUALIFIED = "('QUALIFIED','SALES_READY','CONVERTED')";
+const STAGE_NEEDS_FOLLOW_UP = "('DISCOVERING','NEEDS_REVIEW','QUALIFICATION_PENDING')";
+const STAGE_UNQUALIFIED = "('NEW','DISQUALIFIED')";
+
 export async function getMetrics() {
   const res = await query<{
     leads_today: string;
@@ -198,8 +219,8 @@ export async function getMetrics() {
   }>(
     `SELECT
         COUNT(*) FILTER (WHERE created_at::date = now()::date)                 AS leads_today,
-        COUNT(*) FILTER (WHERE qualification_status = 'qualified')             AS qualified,
-        COUNT(*) FILTER (WHERE qualification_status = 'needs_follow_up')       AS needs_follow_up,
+        COUNT(*) FILTER (WHERE qualification_stage IN ${STAGE_QUALIFIED})      AS qualified,
+        COUNT(*) FILTER (WHERE qualification_stage IN ${STAGE_NEEDS_FOLLOW_UP}) AS needs_follow_up,
         COUNT(*) FILTER (WHERE bitrix_status = 'synced')                       AS synced
      FROM leads`
   );
@@ -226,6 +247,7 @@ export interface AnalyticsData {
   };
   dailyVolume: { day: string; count: number }[];
   byQualification: { status: string; count: number }[];
+  byStage: { stage: string; count: number }[];
   byProduct: { product: string; count: number }[];
   byCreditRisk: { risk: string; count: number }[];
   byChannel: { channel: string; count: number }[];
@@ -234,7 +256,7 @@ export interface AnalyticsData {
 /** Real-data aggregates for the management/analytics view — every number
  *  computed live from Postgres, nothing mocked or hardcoded. */
 export async function getAnalytics(days = 14): Promise<AnalyticsData> {
-  const [totalsRes, dailyRes, qualRes, productRes, riskRes, channelRes] = await Promise.all([
+  const [totalsRes, dailyRes, qualRes, stageRes, productRes, riskRes, channelRes] = await Promise.all([
     query<{
       total_leads: string;
       qualified: string;
@@ -247,9 +269,9 @@ export async function getAnalytics(days = 14): Promise<AnalyticsData> {
     }>(
       `SELECT
           COUNT(*)                                                            AS total_leads,
-          COUNT(*) FILTER (WHERE qualification_status = 'qualified')          AS qualified,
-          COUNT(*) FILTER (WHERE qualification_status = 'needs_follow_up')    AS needs_follow_up,
-          COUNT(*) FILTER (WHERE qualification_status = 'unqualified')        AS unqualified,
+          COUNT(*) FILTER (WHERE qualification_stage IN ${STAGE_QUALIFIED})      AS qualified,
+          COUNT(*) FILTER (WHERE qualification_stage IN ${STAGE_NEEDS_FOLLOW_UP}) AS needs_follow_up,
+          COUNT(*) FILTER (WHERE qualification_stage IN ${STAGE_UNQUALIFIED})     AS unqualified,
           ROUND(AVG(score))                                                   AS avg_score,
           COUNT(*) FILTER (WHERE bitrix_status = 'synced')                    AS bitrix_synced,
           COUNT(*) FILTER (WHERE bitrix_status = 'pending' OR bitrix_status IS NULL) AS bitrix_pending,
@@ -266,6 +288,10 @@ export async function getAnalytics(days = 14): Promise<AnalyticsData> {
     ),
     query<{ status: string; count: string }>(
       `SELECT COALESCE(qualification_status, 'pending') AS status, COUNT(*) AS count
+         FROM leads GROUP BY 1 ORDER BY 2 DESC`
+    ),
+    query<{ stage: string; count: string }>(
+      `SELECT COALESCE(qualification_stage, 'NEW') AS stage, COUNT(*) AS count
          FROM leads GROUP BY 1 ORDER BY 2 DESC`
     ),
     query<{ product: string; count: string }>(
@@ -300,6 +326,7 @@ export async function getAnalytics(days = 14): Promise<AnalyticsData> {
     },
     dailyVolume: dailyRes.rows.map((r) => ({ day: r.day, count: Number(r.count) })),
     byQualification: qualRes.rows.map((r) => ({ status: r.status, count: Number(r.count) })),
+    byStage: stageRes.rows.map((r) => ({ stage: r.stage, count: Number(r.count) })),
     byProduct: productRes.rows.map((r) => ({ product: r.product, count: Number(r.count) })),
     byCreditRisk: riskRes.rows.map((r) => ({ risk: r.risk, count: Number(r.count) })),
     byChannel: channelRes.rows.map((r) => ({ channel: r.channel, count: Number(r.count) })),

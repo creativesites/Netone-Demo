@@ -140,3 +140,27 @@ CREATE TABLE IF NOT EXISTS kb_documents (
 -- over one chat without turning the bot off everywhere else.
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS handoff_active BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS handoff_at     TIMESTAMPTZ;
+
+-- ── Qualification stage ───────────────────────────────────────────────
+-- The full 8-state lead lifecycle (NEW/DISCOVERING/QUALIFICATION_PENDING/
+-- QUALIFIED/NEEDS_REVIEW/DISQUALIFIED/SALES_READY/CONVERTED), replacing
+-- qualification_status as the field driving Bitrix STATUS_ID, analytics,
+-- and every UI badge — see qualification.service.ts::deriveStage(). The
+-- legacy qualification_status column stays (still written, for any old
+-- query/export relying on the 3-state value), but is no longer canonical.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS qualification_stage TEXT;
+-- Set only by an explicit human action (never inferred) — the one manual
+-- transition in an otherwise fully deterministic state machine.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS converted_at TIMESTAMPTZ;
+
+-- One-time bridge for rows that existed before qualification_stage did —
+-- every lead gets recomputed on its next message anyway, this just avoids
+-- a null stage for old rows in the meantime. Idempotent (only touches
+-- still-null rows), safe to run on every startup.
+UPDATE leads SET qualification_stage = CASE
+    WHEN qualification_status = 'qualified' THEN 'QUALIFIED'
+    WHEN qualification_status = 'needs_follow_up' THEN 'DISCOVERING'
+    WHEN qualification_status = 'unqualified' THEN 'DISQUALIFIED'
+    ELSE 'NEW'
+  END
+  WHERE qualification_stage IS NULL;
