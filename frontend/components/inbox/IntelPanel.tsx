@@ -1,10 +1,12 @@
 'use client';
 
-import { Check, Circle, ExternalLink, X, Clock } from 'lucide-react';
+import { ExternalLink, X, Clock, Check } from 'lucide-react';
 import type { Conversation, Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { LeadScoreCard } from '../LeadScoreCard';
 import { CreditRiskBadge } from '../CreditRiskBadge';
+import { StageBadge } from '../StageBadge';
+import { DiscoveryPanel } from '../DiscoveryPanel';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -15,24 +17,12 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-const FIELDS: { key: keyof NonNullable<Lead['collected']>; label: string }[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'product', label: 'Product' },
-  { key: 'financing', label: 'Financing' },
-  { key: 'budget', label: 'Budget' },
-  { key: 'location', label: 'Location' },
-  { key: 'employment', label: 'Employment' },
-  { key: 'monthlyIncome', label: 'Monthly income' },
-];
-
 export function IntelPanel({ conversation, lead }: { conversation: Conversation | null; lead: Lead | null }) {
   if (!conversation) {
     return <div className="border-l border-line bg-white" />;
   }
 
   const collected = lead?.collected ?? null;
-  const filled = collected ? FIELDS.filter((f) => collected[f.key]).length : 0;
-  const pct = Math.round((filled / FIELDS.length) * 100);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto scroll-thin border-l border-line bg-white p-4">
@@ -58,31 +48,13 @@ export function IntelPanel({ conversation, lead }: { conversation: Conversation 
       {conversation.is_lead && lead && (
         <>
           <div className="mb-4">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">Profile collected</span>
-              <span className="text-[11px] font-bold text-ink-700">{pct}%</span>
-            </div>
-            <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-              <div className="h-full rounded-full bg-brand-500 transition-all duration-500" style={{ width: `${pct}%` }} />
-            </div>
-            <div className="space-y-1">
-              {FIELDS.map((f) => {
-                const val = collected?.[f.key];
-                return (
-                  <div key={f.key} className="flex items-center gap-2 text-xs">
-                    {val ? <Check size={13} className="shrink-0 text-emerald-500" /> : <Circle size={13} className="shrink-0 text-gray-300" />}
-                    <span className="text-ink-400">{f.label}:</span>
-                    <span className="truncate text-ink-800">{val ?? '—'}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <DiscoveryPanel collected={collected} compact />
           </div>
 
           <div className="rounded-xl border border-line bg-surface-muted p-3">
             <Row label="Intent" value={<span className="capitalize">{(lead.intent ?? '—').replace(/_/g, ' ')}</span>} />
             <Row label="Purchase intent" value={<span className="capitalize">{lead.purchase_intent ?? '—'}</span>} />
-            <Row label="Qualification" value={<span className="capitalize">{(lead.qualification_status ?? '—').replace(/_/g, ' ')}</span>} />
+            <Row label="Stage" value={<StageBadge stage={lead.qualification_stage} />} />
             <Row label="Assigned" value={lead.assigned_to ?? '—'} />
           </div>
 

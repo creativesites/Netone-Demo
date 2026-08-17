@@ -7,19 +7,7 @@ import { bitrixLeadUrl } from '@/lib/bitrix';
 import { channelLabel } from '@/lib/channel';
 import { LeadScoreCard } from './LeadScoreCard';
 import { CreditRiskBadge } from './CreditRiskBadge';
-
-function qualBadge(q: string | null) {
-  switch (q) {
-    case 'qualified':
-      return { text: 'QUALIFIED', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-    case 'needs_follow_up':
-      return { text: 'NEEDS FOLLOW-UP', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
-    case 'unqualified':
-      return { text: 'UNQUALIFIED', cls: 'bg-gray-100 text-ink-500 border-line' };
-    default:
-      return { text: 'PENDING', cls: 'bg-gray-100 text-ink-400 border-line' };
-  }
-}
+import { StageBadge } from './StageBadge';
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -45,7 +33,6 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
     );
   }
 
-  const q = qualBadge(lead.qualification_status);
   const bitrixOk = lead.bitrix_status === 'synced';
   const bitrixUrl = lead.bitrix_lead_id ? bitrixLeadUrl(lead.bitrix_lead_id) : null;
 
@@ -57,7 +44,7 @@ export function LeadDetail({ lead }: { lead: Lead | null }) {
           <div className="text-xs text-ink-500">{lead.phone}</div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${q.cls}`}>{q.text}</span>
+          <StageBadge stage={lead.qualification_stage} />
           <Link href={`/leads/${lead.id}`} className="text-[11px] font-medium text-brand-600 hover:underline">
             View full profile →
           </Link>

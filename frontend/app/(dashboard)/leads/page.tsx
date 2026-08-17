@@ -8,22 +8,12 @@ import { exportLeadsToExcel } from '@/lib/exportLeads';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { channelLabel } from '@/lib/channel';
 import { CreditRiskBadge } from '@/components/CreditRiskBadge';
-import type { Lead } from '@/lib/types';
+import { StageBadge } from '@/components/StageBadge';
+import type { Lead, QualificationStage } from '@/lib/types';
 
-const QUALIFICATIONS = ['qualified', 'needs_follow_up', 'unqualified'] as const;
-
-function qualBadge(q: string | null) {
-  switch (q) {
-    case 'qualified':
-      return { text: 'Qualified', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-    case 'needs_follow_up':
-      return { text: 'Needs follow-up', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
-    case 'unqualified':
-      return { text: 'Unqualified', cls: 'bg-gray-100 text-ink-500 border-line' };
-    default:
-      return { text: 'Pending', cls: 'bg-gray-100 text-ink-400 border-line' };
-  }
-}
+const STAGES: QualificationStage[] = [
+  'NEW', 'DISCOVERING', 'QUALIFICATION_PENDING', 'QUALIFIED', 'NEEDS_REVIEW', 'DISQUALIFIED', 'SALES_READY', 'CONVERTED',
+];
 
 function intentTone(pi: string | null) {
   if (pi === 'high') return 'text-emerald-600';
@@ -43,18 +33,18 @@ export default function LeadsPage() {
   const leads = useRealtimeCollection<Lead>('leads', 'updated_at', '/api/leads?limit=500', (r) => (r.leads ?? []) as Lead[], 5000, 500);
 
   const [search, setSearch] = useState('');
-  const [qualFilter, setQualFilter] = useState<string>('all');
+  const [stageFilter, setStageFilter] = useState<string>('all');
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return leads.filter((l) => {
-      if (qualFilter !== 'all' && l.qualification_status !== qualFilter) return false;
+      if (stageFilter !== 'all' && l.qualification_stage !== stageFilter) return false;
       if (!q) return true;
-      return [l.name, l.phone, l.product, l.next_action, l.collected?.location]
+      return [l.name, l.phone, l.product, l.next_action, l.collected?.location, l.collected?.city]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [leads, search, qualFilter]);
+  }, [leads, search, stageFilter]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
@@ -87,14 +77,14 @@ export default function LeadsPage() {
           />
         </div>
         <select
-          value={qualFilter}
-          onChange={(e) => setQualFilter(e.target.value)}
+          value={stageFilter}
+          onChange={(e) => setStageFilter(e.target.value)}
           className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink-800 outline-none focus:border-brand-400"
         >
-          <option value="all">All qualifications</option>
-          {QUALIFICATIONS.map((q) => (
-            <option key={q} value={q}>
-              {q.replace(/_/g, ' ')}
+          <option value="all">All stages</option>
+          {STAGES.map((s) => (
+            <option key={s} value={s}>
+              {s.replace(/_/g, ' ')}
             </option>
           ))}
         </select>
@@ -112,7 +102,7 @@ export default function LeadsPage() {
                 <th className="px-4 py-3 font-semibold">Channel</th>
                 <th className="px-4 py-3 font-semibold">Product</th>
                 <th className="px-4 py-3 font-semibold">Intent</th>
-                <th className="px-4 py-3 font-semibold">Qualification</th>
+                <th className="px-4 py-3 font-semibold">Stage</th>
                 <th className="px-4 py-3 font-semibold">Score</th>
                 <th className="px-4 py-3 font-semibold">Credit risk</th>
                 <th className="px-4 py-3 font-semibold">Bitrix</th>
@@ -128,7 +118,6 @@ export default function LeadsPage() {
                 </tr>
               ) : (
                 filtered.map((l) => {
-                  const q = qualBadge(l.qualification_status);
                   const bitrixUrl = l.bitrix_lead_id ? bitrixLeadUrl(l.bitrix_lead_id) : null;
                   return (
                     <tr key={l.id} className="border-b border-line last:border-0 hover:bg-brand-50/40">
@@ -155,7 +144,7 @@ export default function LeadsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Link href={`/leads/${l.id}`} className="block">
-                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${q.cls}`}>{q.text}</span>
+                          <StageBadge stage={l.qualification_stage} />
                         </Link>
                       </td>
                       <td className="px-4 py-3">

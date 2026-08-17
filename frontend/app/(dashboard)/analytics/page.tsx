@@ -22,17 +22,25 @@ function StatTile({ label, value, suffix, accent, Icon }: { label: string; value
   );
 }
 
-const QUALIFICATION_LABEL: Record<string, string> = {
-  qualified: 'Qualified',
-  needs_follow_up: 'Needs follow-up',
-  unqualified: 'Unqualified',
-  pending: 'Pending',
+const STAGE_LABEL: Record<string, string> = {
+  NEW: 'New',
+  DISCOVERING: 'Discovering',
+  QUALIFICATION_PENDING: 'Qualification pending',
+  QUALIFIED: 'Qualified',
+  NEEDS_REVIEW: 'Needs review',
+  DISQUALIFIED: 'Disqualified',
+  SALES_READY: 'Sales ready',
+  CONVERTED: 'Converted',
 };
-const QUALIFICATION_COLOR: Record<string, string> = {
-  qualified: 'bg-emerald-500',
-  needs_follow_up: 'bg-amber-500',
-  unqualified: 'bg-gray-300',
-  pending: 'bg-gray-300',
+const STAGE_COLOR: Record<string, string> = {
+  NEW: 'bg-gray-300',
+  DISCOVERING: 'bg-sky-500',
+  QUALIFICATION_PENDING: 'bg-teal-500',
+  QUALIFIED: 'bg-emerald-500',
+  NEEDS_REVIEW: 'bg-amber-500',
+  DISQUALIFIED: 'bg-rose-400',
+  SALES_READY: 'bg-emerald-600',
+  CONVERTED: 'bg-violet-500',
 };
 
 const CREDIT_RISK_LABEL: Record<string, string> = {
@@ -57,16 +65,17 @@ export default function AnalyticsPage() {
     totals: { totalLeads: 0, qualified: 0, needsFollowUp: 0, unqualified: 0, avgScore: 0, conversionRate: 0, bitrixSynced: 0, bitrixPending: 0, bitrixFailed: 0 },
     dailyVolume: [],
     byQualification: [],
+    byStage: [],
     byProduct: [],
     byCreditRisk: [],
     byChannel: [],
   };
 
-  const qualificationRows: BreakdownRow[] = a.byQualification.map((r) => ({
-    key: r.status,
-    label: QUALIFICATION_LABEL[r.status] ?? r.status,
+  const stageRows: BreakdownRow[] = a.byStage.map((r) => ({
+    key: r.stage,
+    label: STAGE_LABEL[r.stage] ?? r.stage,
     count: r.count,
-    colorClass: QUALIFICATION_COLOR[r.status] ?? 'bg-gray-300',
+    colorClass: STAGE_COLOR[r.stage] ?? 'bg-gray-300',
   }));
 
   const creditRiskRows: BreakdownRow[] = a.byCreditRisk.map((r) => ({
@@ -116,7 +125,7 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <BreakdownBars title="Qualification breakdown" rows={qualificationRows} />
+        <BreakdownBars title="Stage breakdown" rows={stageRows} />
         <BreakdownBars title="Credit-risk distribution" rows={creditRiskRows} emptyLabel="No financing-interested leads yet." />
         <BreakdownBars title="Top products" rows={productRows} emptyLabel="No product interest recorded yet." />
         <BreakdownBars title="By channel" rows={channelRows} />

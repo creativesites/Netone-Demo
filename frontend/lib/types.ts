@@ -6,6 +6,19 @@ export interface PipelineStep {
   at: string;
 }
 
+// The full lead lifecycle — replaces qualification_status as the field
+// driving Bitrix STATUS_ID, analytics, and every UI badge. See
+// backend/src/services/qualification.service.ts::deriveStage().
+export type QualificationStage =
+  | 'NEW'
+  | 'DISCOVERING'
+  | 'QUALIFICATION_PENDING'
+  | 'QUALIFIED'
+  | 'NEEDS_REVIEW'
+  | 'DISQUALIFIED'
+  | 'SALES_READY'
+  | 'CONVERTED';
+
 export interface Lead {
   id: number;
   external_contact_id: string;
@@ -18,7 +31,11 @@ export interface Lead {
   product: string | null;
   financing_interest: boolean | null;
   purchase_intent: string | null;
+  // Legacy 3-state column, kept for backward compat — qualification_stage
+  // below is canonical.
   qualification_status: string | null;
+  qualification_stage?: QualificationStage | null;
+  converted_at?: string | null;
   ai_reasoning: string | null;
   ai_summary: string | null;
   ai_source: string | null;
@@ -53,6 +70,54 @@ export interface CollectedProfile {
   location: string | null;
   employment: string | null;
   monthlyIncome: string | null;
+
+  // Zambia-specific structured fields — sample/demo registry, see
+  // backend/src/services/fields.service.ts. Optional/additive, same as
+  // the backend CollectedProfile.
+  email?: string | null;
+  productCategory?: string | null;
+  preferredModel?: string | null;
+  purchaseMethod?: 'cash' | 'financing' | 'unsure' | null;
+  employmentType?: string | null;
+  employerName?: string | null;
+  jobTitle?: string | null;
+  employmentDuration?: string | null;
+  incomeFrequency?: string | null;
+  incomeCurrency?: string | null;
+  incomeSource?: string | null;
+  incomeVerified?: 'declared' | 'verified' | 'unknown' | null;
+  province?: string | null;
+  district?: string | null;
+  city?: string | null;
+  area?: string | null;
+  financingPartner?: string | null;
+  financingAmount?: string | null;
+  preferredRepaymentPeriod?: string | null;
+  depositAvailable?: string | null;
+  financingEligibilityStatus?: string | null;
+}
+
+export type FieldCategory = 'customer' | 'product' | 'employment' | 'income' | 'location' | 'financing';
+
+export interface QualificationField {
+  key: keyof CollectedProfile;
+  label: string;
+  category: FieldCategory;
+  required: boolean;
+  order: number;
+  question: string;
+  extractionType: 'text' | 'enum' | 'number' | 'boolean';
+  options?: string[];
+  source: 'ai' | 'derived' | 'manual';
+}
+
+export interface DiscoveryResult {
+  totalRequired: number;
+  collectedCount: number;
+  completionPercentage: number;
+  collected: QualificationField[];
+  missing: QualificationField[];
+  nextField: QualificationField | null;
 }
 
 export interface QualificationCriterionRule {
@@ -84,6 +149,8 @@ export interface QualificationRules {
   qualifiedThreshold: number;
   followUpThreshold: number;
   employmentWeights: Record<EmploymentCategory, number>;
+  // Sample/demo discovery field registry — see fields.service.ts.
+  fields: QualificationField[];
 }
 
 export interface Conversation {
@@ -148,6 +215,7 @@ export interface Analytics {
   };
   dailyVolume: { day: string; count: number }[];
   byQualification: { status: string; count: number }[];
+  byStage: { stage: string; count: number }[];
   byProduct: { product: string; count: number }[];
   byCreditRisk: { risk: string; count: number }[];
   byChannel: { channel: string; count: number }[];

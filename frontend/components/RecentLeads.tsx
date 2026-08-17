@@ -4,12 +4,7 @@ import Link from 'next/link';
 import type { Lead } from '@/lib/types';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { channelLabel } from '@/lib/channel';
-
-function dot(q: string | null) {
-  if (q === 'qualified') return 'bg-emerald-500';
-  if (q === 'needs_follow_up') return 'bg-amber-500';
-  return 'bg-ink-400';
-}
+import { StageDot } from '@/components/StageBadge';
 
 export function RecentLeads({ leads }: { leads: Lead[] }) {
   return (
@@ -33,7 +28,7 @@ export function RecentLeads({ leads }: { leads: Lead[] }) {
                 href={`/leads/${l.id}`}
                 className="flex items-center gap-3 rounded-xl border border-line bg-white px-3 py-2 transition-colors hover:border-brand-200 hover:bg-brand-50/40"
               >
-                <span className={`h-2 w-2 shrink-0 rounded-full ${dot(l.qualification_status)}`} />
+                <StageDot stage={l.qualification_stage} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-ink-800">{l.name ?? l.phone ?? 'Unknown'}</div>
                   <div className="truncate text-[11px] text-ink-400">

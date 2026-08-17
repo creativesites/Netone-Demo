@@ -3,22 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Check, Circle } from 'lucide-react';
-import { useRealtimeDoc, apiGet } from '@/lib/realtime';
+import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { useRealtimeDoc, apiGet, apiPost } from '@/lib/realtime';
 import { LeadDetail } from '@/components/LeadDetail';
 import { Timeline } from '@/components/Timeline';
+import { DiscoveryPanel } from '@/components/DiscoveryPanel';
 import { channelLabel } from '@/lib/channel';
 import type { Lead, LeadEvent } from '@/lib/types';
-
-const PROFILE_FIELDS: { key: keyof NonNullable<Lead['collected']>; label: string }[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'product', label: 'Product' },
-  { key: 'financing', label: 'Financing' },
-  { key: 'budget', label: 'Budget' },
-  { key: 'location', label: 'Location' },
-  { key: 'employment', label: 'Employment' },
-  { key: 'monthlyIncome', label: 'Monthly income' },
-];
 
 export default function LeadPage() {
   const params = useParams<{ id: string }>();
@@ -47,6 +38,21 @@ export default function LeadPage() {
 
   const collected = lead?.collected ?? null;
 
+  const [converting, setConverting] = useState(false);
+  const [justConverted, setJustConverted] = useState(false);
+  async function markConverted() {
+    if (!id) return;
+    setConverting(true);
+    try {
+      const res = await apiPost(`/api/leads/${id}/convert`, {});
+      if (res.ok) setJustConverted(true);
+    } finally {
+      setConverting(false);
+    }
+  }
+  const isSalesReady = lead?.qualification_stage === 'SALES_READY';
+  const isConverted = justConverted || lead?.qualification_stage === 'CONVERTED';
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-8">
       <Link href="/leads" className="mb-4 inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-800">
@@ -59,6 +65,21 @@ export default function LeadPage() {
         <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
           <div className="space-y-4">
             <LeadDetail lead={lead} />
+            {isSalesReady && !isConverted && (
+              <button
+                onClick={markConverted}
+                disabled={converting}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CheckCircle2 size={15} />
+                {converting ? 'Marking as converted…' : 'Mark as Converted'}
+              </button>
+            )}
+            {isConverted && (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700">
+                <CheckCircle2 size={15} /> Converted
+              </div>
+            )}
             <Timeline events={events} />
           </div>
 
@@ -66,18 +87,7 @@ export default function LeadPage() {
             {collected && (
               <div className="card p-5">
                 <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">Collected profile</div>
-                <div className="space-y-2">
-                  {PROFILE_FIELDS.map((f) => {
-                    const val = collected[f.key];
-                    return (
-                      <div key={f.key} className="flex items-center gap-2 text-sm">
-                        {val ? <Check size={14} className="shrink-0 text-emerald-500" /> : <Circle size={14} className="shrink-0 text-gray-300" />}
-                        <span className="w-28 shrink-0 text-ink-400">{f.label}</span>
-                        <span className="truncate text-ink-800">{val ?? '—'}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <DiscoveryPanel collected={collected} />
               </div>
             )}
 

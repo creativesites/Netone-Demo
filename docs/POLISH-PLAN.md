@@ -32,6 +32,7 @@ demo script, discovery questions, and documentation deliverables).
 | 11 | Testing | 🔲 Not started |
 | 12 | CEO-demo polish | ✅ Done (first pass) |
 | 13 | Documentation (`docs/*.md`) | 🔲 Not started |
+| 14 | Configurable qualification & discovery framework | ✅ Done (real live test) |
 
 Update the emoji + a one-line note per phase as work lands. Nothing later
 than the first 🔲 should be started out of order unless explicitly noted.
@@ -740,3 +741,95 @@ Live dev server SSR-checked: all 10 section headings, the Start Here
 block, and all three credential values confirmed present in the rendered
 HTML; regression-checked `/`, `/about`, and `/leads` still render
 cleanly. No credential leakage found anywhere else in the codebase.
+
+### Configurable qualification & discovery framework (✅ done, 2026-08-17)
+User request: turn the fixed 7-field, hardcoded-criteria qualification
+engine into a genuinely configurable, Zambia-specific framework — NetOne
+hasn't supplied their real qualification policy yet, so the goal was a
+robust framework with sensible sample/demo fields and rules, clearly
+configurable, not a claim that today's demo values are final. Core
+constraint carried through every layer: **AI understands, business rules
+decide** — the AI extracts/labels/classifies, deterministic code decides
+qualification status, score, stage, and what Nia asks next. Built in three
+committed stages, each verified live before the next started.
+
+**Stage 1 — backend data model** (`fields.service.ts`, `discovery.service.ts`
+new; `qualification.service.ts`, `types.ts`, `schema.sql`, `leads.repo.ts`,
+`bitrix24.adapter.ts`, `routes/leads.ts`, `routes/settings.ts` extended).
+A new `QualificationField` registry (`DEFAULT_QUALIFICATION_FIELDS`) covers
+customer/product/employment/income/location/financing fields with
+Zambia-specific province/city lookups and employment-type categories
+mapped onto the existing, unchanged 6-category credit-risk engine — every
+field explicitly commented as sample/demo config, not NetOne policy (e.g.
+no hardcoded income threshold presented as official). `computeDiscovery()`
+is the pure "what's still missing" engine, aware that employment/income/
+financing fields only matter once the customer wants financing. A new
+8-state `QualificationStage` (NEW → DISCOVERING → QUALIFICATION_PENDING /
+NEEDS_REVIEW / DISQUALIFIED → QUALIFIED → SALES_READY → CONVERTED) is
+derived deterministically from the existing 3-state qualification plus
+discovery completeness, and replaces `qualification_status` as the field
+driving Bitrix `STATUS_ID`, analytics, and every UI badge. The Bitrix
+mapping (NEW→NEW, DISCOVERING/QUALIFICATION_PENDING/QUALIFIED/
+NEEDS_REVIEW→IN_PROCESS, SALES_READY→PROCESSED, DISQUALIFIED→JUNK,
+CONVERTED→CONVERTED) was verified against the **real connected Bitrix24
+portal's** actual configured statuses (`crm.status.list`), not assumed.
+
+**Stage 2 — registry-driven conversational flow** (`ai.service.ts`). Nia
+now asks whatever the field registry marks required, in registry order,
+via `missingFields()` delegating to the same `computeDiscovery()` Stage 1
+built — so the live conversation and the Discovery panel can never
+disagree about what's missing. All existing behavioral rules (one-
+question-at-a-time, decline handling, never-assume-product, personality
+matching, KB-only product answers, cash-purchase skips employment/income)
+kept verbatim. Structured `purchaseMethod`/`employmentType`/`city` now
+take the same question slot the old free-text financing/employment/
+location questions used; legacy fields stay as a fallback for older leads.
+Derived fields (province from city, `incomeVerified` defaulting to
+"declared", `productCategory` from the matched KB product) are computed by
+code, never the AI. Fixed a real bug found during live testing: the
+agent's Zod schema required the model's own `complete` boolean, but the
+code already recomputes completion itself and discards the AI's value —
+DeepSeek omitting that field was silently tripping schema validation on
+roughly half of turns, falling back to generic deterministic replies.
+
+**Stage 3 — frontend UI** (`lib/types.ts`, new `lib/discovery.ts`,
+`components/StageBadge.tsx`, `components/DiscoveryPanel.tsx`; wired into
+`IntelPanel.tsx`, `leads/[id]/page.tsx`, `LeadDetail.tsx`,
+`RecentLeads.tsx`, `leads/page.tsx`, `analytics/page.tsx`,
+`settings/qualification-rules/page.tsx`, `lib/exportLeads.ts`). The
+hardcoded 7-field checklists in the inbox intel panel and the lead detail
+page are both replaced by one shared, registry-driven `DiscoveryPanel`.
+The 8-state stage badge (8 distinct colors, escalating from neutral →
+amber → emerald, with a distinct violet for CONVERTED) replaces the old
+3-state badge everywhere it appeared, including the leads table's filter.
+The Rules page gained a "Discovery Fields" card — grouped by category,
+required/optional toggle (AI-source fields only; derived/manual fields
+show a locked D/M badge instead), reorder within category, editable
+question text — explicitly labeled sample/demo configuration. A "Mark as
+Converted" action appears on the lead page once `stage === 'SALES_READY'`,
+calling the new `POST /api/leads/:id/convert` route. Analytics' qualification
+chart became an 8-category stage breakdown fed by the backend's new
+`byStage` data.
+
+**Verification:** `tsc --noEmit` and full build clean for both apps after
+every stage. Live pipeline tests against a local Postgres and the real
+connected Bitrix24 sandbox portal: a full financing conversation
+correctly extracted every structured field in the right order and reached
+QUALIFIED; a cash conversation correctly skipped the entire financing/
+employment/income block and reached SALES_READY, with the real portal
+confirming `STATUS_ID` landed on `PROCESSED`; a disqualified conversation
+confirmed `STATUS_ID` landed on `JUNK`; a synthetic matrix test covered
+all 8 stage transitions; a registry-toggle test (marking a field required
+via the same repo layer the Rules page uses) proved Nia's questions are
+genuinely data-driven, not just relabeled. Frontend verified via a clean
+`next build`, backend+frontend dev servers running together against
+seeded leads, REST responses inspected directly, and the compiled dev
+bundles grepped to confirm the new Discovery/Stage/Convert UI actually
+shipped on every route touched. All Bitrix test leads created during
+verification were deleted from the real sandbox portal afterward.
+
+**Not done in this pass:** the framework intentionally does not implement
+per-lead income-threshold enforcement, actual credit approval, or any
+NetOne-specific policy — every field/threshold/rule is explicitly sample/
+demo configuration pending NetOne's real requirements, per the original
+request.
