@@ -288,10 +288,10 @@ function evalCriterion(
       fraction = collected.product || analysis.product ? 1 : 0;
       break;
     case 'financing':
-      fraction = analysis.financingInterest || wantsFinancingAnswer(collected.financing) !== null ? 1 : 0;
+      fraction = analysis.financingInterest || resolvePurchaseMethod(collected) !== null ? 1 : 0;
       break;
     case 'location':
-      fraction = collected.location ? 1 : 0;
+      fraction = collected.location || collected.city ? 1 : 0;
       break;
     case 'contact':
       fraction = hasPhone ? 1 : 0;

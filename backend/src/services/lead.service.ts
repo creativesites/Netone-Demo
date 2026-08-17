@@ -341,12 +341,12 @@ async function runConversationalAgent(
     .map((m) => `${m.direction === 'inbound' ? 'Prospect' : 'Nia'}: ${m.body}`)
     .join('\n');
 
-  const { turn } = await converse(historyLines, lead.collected, lead.collected.name ?? conv.contact_name);
+  const rules = await getQualificationRules();
+  const { turn } = await converse(historyLines, lead.collected, lead.collected.name ?? conv.contact_name, rules.fields);
   let updatedLead = await updateCollected(lead.id, turn.collected, turn.complete);
 
   // Re-score now that the conversation collected more of the profile — the
   // lead's score/qualification should visibly improve as fields fill in.
-  const rules = await getQualificationRules();
   const discovery = computeDiscovery(rules.fields, turn.collected);
   const qual = qualify(
     analysis,

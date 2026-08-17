@@ -14,9 +14,10 @@ import { z } from 'zod';
 import { config, flags } from '../config.js';
 import { logger } from '../logger.js';
 import type { AgentTurn, CollectedProfile, LeadAnalysis } from '../types.js';
-import { REQUIRED_FIELDS } from '../types.js';
-import { isDeclinedAnswer, wantsFinancingAnswer } from './qualification.service.js';
-import { getKnowledgeContext } from '../db/kb.repo.js';
+import { isDeclinedAnswer } from './qualification.service.js';
+import { computeDiscovery } from './discovery.service.js';
+import { DEFAULT_QUALIFICATION_FIELDS, EMPLOYMENT_TYPE_OPTIONS, deriveProvinceFromCity, type QualificationField } from './fields.service.js';
+import { getKnowledgeContext, listProducts } from '../db/kb.repo.js';
 
 // Models sometimes return numbers (e.g. budget: 8000) where we want a string.
 // Coerce number → string, keep null/undefined as null.
@@ -67,9 +68,25 @@ function coerceAnalysis(raw: unknown, aiSource: LeadAnalysis['aiSource']): LeadA
 }
 
 // ── Conversational agent ──────────────────────────────────────
+// The set of CollectedProfile keys the AI is ever allowed to fill directly —
+// fixed regardless of what the Rules page reconfigures (required/order/
+// question text change; the key set doesn't). Keeping the Zod schema's
+// shape static (not built dynamically per-registry) avoids the class of
+// runtime-schema bug this session already fixed once elsewhere — 'derived'
+// and 'manual' fields are deliberately excluded here, so the AI can never
+// set a value that's supposed to come from deterministic code or a rep.
+const AI_FIELD_KEYS = DEFAULT_QUALIFICATION_FIELDS.filter((f) => f.source === 'ai').map((f) => f.key);
+
+const purchaseMethodSchema = z.preprocess(
+  (v) => (v === 'cash' || v === 'financing' || v === 'unsure' ? v : null),
+  z.enum(['cash', 'financing', 'unsure']).nullable()
+);
+
 const agentSchema = z.object({
   reply: z.string().min(1),
   collected: z.object({
+    // Legacy free-text fields — kept exactly as before for backward compat
+    // (older leads, and as a fallback the qualification engine still reads).
     name: nullableString,
     product: nullableString,
     financing: nullableString,
@@ -77,19 +94,38 @@ const agentSchema = z.object({
     location: nullableString,
     employment: nullableString,
     monthlyIncome: nullableString,
+    // Structured Zambia-specific fields (sample/demo registry — see
+    // fields.service.ts). Nullable/optional so a provider that omits one
+    // (or a customer who hasn't given it) never breaks validation.
+    email: nullableString.optional(),
+    purchaseMethod: purchaseMethodSchema.optional(),
+    city: nullableString.optional(),
+    district: nullableString.optional(),
+    area: nullableString.optional(),
+    employmentType: nullableString.optional(),
+    employerName: nullableString.optional(),
+    jobTitle: nullableString.optional(),
+    employmentDuration: nullableString.optional(),
+    incomeSource: nullableString.optional(),
+    preferredRepaymentPeriod: nullableString.optional(),
+    depositAvailable: nullableString.optional(),
   }),
-  complete: z.boolean(),
+  // Ignored downstream in favor of a code-computed value (missingFields()
+  // after merge, below) — deterministic code decides "complete", not the
+  // model — so it's optional here rather than a validation trip hazard for
+  // a value we discard anyway.
+  complete: z.boolean().optional(),
 });
 
 const AGENT_PROMPT = `You are "Nia", a warm, friendly and professional sales assistant for NetOne Zambia (locally made laptops & tech, available on financing through partner lenders).
 
 You are chatting with a prospect on WhatsApp. Your goals, in order:
 1. Be genuinely helpful, natural and concise — like a real Zambian sales rep. 1–3 short sentences, WhatsApp tone. You may use at most one tasteful emoji.
-2. Naturally collect these details you don't yet have: full name, which product they want, financing preference (cash or installments), budget/price range, their location/city.
-3. If — and only if — they want financing, also collect: their employment situation in their own words (e.g. "I'm a teacher", "I run my own shop", "self-employed", "not working right now" — don't force a category, just capture what they say naturally) and roughly their monthly income. Explain briefly this is to check financing eligibility with our partner lenders — be tactful, this is sensitive.
+2. Naturally collect whatever appears in the "Still missing" list below (given per turn), one at a time, in the order given — that list already reflects NetOne's current qualification requirements, so don't invent extra questions or skip ones it includes. Each entry gives you a suggested phrasing hint; use it as guidance, not a script to read verbatim.
+3. Financing/employment/income questions only ever appear in "Still missing" once the prospect has actually said they want financing — you will never be asked to collect them for a cash purchase, so you never need to guess. When you do ask about employment, capture their own words in "employment" AND classify it into the closest listed employmentType token (given in that entry's hint) — don't force a category if genuinely unclear, but do your best; explain briefly this is to check financing eligibility with our partner lenders — be tactful, this is sensitive.
 4. Never ask about employment or income if they said they're paying cash.
 5. Ask for only ONE missing detail per message so it feels like a conversation, not a form. Acknowledge what they just said first. Before you ask anything, re-check the "Already collected" list below — never ask for something that's already there, even in a different form (e.g. if a name is already known, don't ask "what's your name" again just because they haven't said it in this exact message).
-6. When you have all details, warmly confirm a NetOne sales rep will follow up shortly, and set complete=true.
+6. When "Still missing" is empty, warmly confirm a NetOne sales rep will follow up shortly, and set complete=true.
 7. If asked about specific products, prices or specs, answer ONLY from the KNOWLEDGE BASE section provided below. If something isn't in it, say a sales rep will confirm — never invent a price or spec.
 
 NEVER ASSUME — SUGGEST, DON'T DECIDE:
@@ -110,20 +146,35 @@ People are allowed to not answer — handle it with grace, never push or repeat 
 MATCH THEIR ENERGY, STAY YOURSELF:
 Read how this specific person writes — formal or casual, terse or chatty, lots of emoji or none, proper grammar or relaxed WhatsApp shorthand — and let your own reply lean naturally toward that register, the way a good real salesperson unconsciously mirrors whoever they're talking to. Don't imitate them or copy their exact phrases, and don't overdo it — you're still recognizably Nia: warm, professional, on-brand. A terse customer gets tighter replies with less small talk; a chatty, emoji-heavy customer gets a bit more warmth back. If unsure, default to a friendly, moderately warm tone.
 
-You are given NetOne's knowledge base, the conversation so far, and the details already collected. Return ONLY a JSON object:
+You are given NetOne's knowledge base, the conversation so far, the details already collected, and the "Still missing" list. Return ONLY a JSON object:
 - "reply": the next message to send the prospect
-- "collected": { "name", "product", "financing", "budget", "location", "employment", "monthlyIncome" } — carry forward known values, fill in anything new the customer themselves actually stated in the latest message, use null when still unknown or not applicable
-- "complete": true only once every relevant field is filled and you've confirmed follow-up
+- "collected": { "name", "product", "financing", "purchaseMethod", "budget", "location", "city", "district", "area", "employment", "employmentType", "employerName", "jobTitle", "employmentDuration", "monthlyIncome", "incomeSource", "preferredRepaymentPeriod", "depositAvailable", "email" } — carry forward known values, fill in anything new the customer themselves actually stated in the latest message, use null when still unknown or not applicable. Only include a field if you have something to say about it — omit ones you have nothing new for.
+- "complete": true only once "Still missing" is empty and you've confirmed follow-up
 
 Return strictly valid JSON. No markdown.`;
 
-/** Employment/income are only relevant once the prospect has said they want financing. */
-function missingFields(c: CollectedProfile): (keyof CollectedProfile)[] {
-  const wantsFinancing = wantsFinancingAnswer(c.financing); // null = not yet known
-  return REQUIRED_FIELDS.filter((f) => {
-    if ((f === 'employment' || f === 'monthlyIncome') && wantsFinancing === false) return false;
-    return !c[f] || String(c[f]).trim() === '';
-  });
+/** True once the field registry says nothing required is still missing (see
+ *  discovery.service.ts::computeDiscovery — the same read the Discovery
+ *  panel and analytics use, so the conversation never disagrees with them
+ *  about what's left to collect). Only 'ai'-source fields are ever surfaced
+ *  here — 'derived'/'manual' fields are never something Nia should ask for. */
+function missingFields(fields: QualificationField[], c: CollectedProfile): QualificationField[] {
+  return computeDiscovery(fields, c).missing.filter((f) => f.source === 'ai');
+}
+
+function fieldHint(field: QualificationField): string {
+  if (field.key === 'employmentType') {
+    const tokens = EMPLOYMENT_TYPE_OPTIONS.map((o) => o.value).join(', ');
+    return `${field.question} (classify into one of: ${tokens})`;
+  }
+  if (field.options?.length) return `${field.question} (one of: ${field.options.join(', ')})`;
+  return field.question;
+}
+
+function stillMissingBlock(fields: QualificationField[], c: CollectedProfile): string {
+  const missing = missingFields(fields, c);
+  if (missing.length === 0) return '(none — every required detail is collected)';
+  return missing.map((f) => `- ${f.key}: ${fieldHint(f)}`).join('\n');
 }
 
 // ── Provider calls ────────────────────────────────────────────
@@ -219,35 +270,25 @@ function isDecline(history: string): boolean {
   return isDeclinedAnswer(lastProspectLine.replace(/^Prospect:\s*/, ''));
 }
 
-function converseDeterministic(history: string, collected: CollectedProfile): AgentTurn {
-  const ask: Record<string, string> = {
-    name: 'May I get your full name, please?',
-    product: 'Which product are you interested in — one of our NetOne laptops?',
-    financing: 'Would you prefer to pay cash or on financing (monthly installments)?',
-    budget: 'Roughly what budget did you have in mind?',
-    location: 'Which city or area are you based in, so we can arrange delivery or your nearest branch?',
-    employment: 'To check financing eligibility with our partner lenders — are you formally employed, a civil servant, self-employed, or currently not working?',
-    monthlyIncome: 'And roughly what is your monthly income? This helps us confirm affordability with our financing partner.',
-  };
-
+function converseDeterministic(history: string, collected: CollectedProfile, fields: QualificationField[]): AgentTurn {
   // Without real NLU this can't extract meaning from free text, but it can
   // still recognize "no" and move on gracefully instead of repeating the
   // exact same question forever — a customer who declines has still
   // answered, they just didn't give us the value.
   let working = collected;
   if (isDecline(history)) {
-    const wasAsking = missingFields(collected)[0];
-    if (wasAsking) working = { ...collected, [wasAsking]: 'prefers not to share' };
+    const wasAsking = missingFields(fields, collected)[0];
+    if (wasAsking) working = { ...collected, [wasAsking.key]: 'prefers not to share' };
   }
 
-  const missing = missingFields(working);
+  const missing = missingFields(fields, working);
   if (missing.length === 0) {
     return { reply: 'Thank you! A NetOne sales representative will contact you shortly to finalise everything. 😊', collected: working, complete: true };
   }
   const reply =
     working !== collected
-      ? `No problem at all, totally understand. ${ask[missing[0]]}`
-      : `Thanks for reaching out to NetOne! ${ask[missing[0]]}`;
+      ? `No problem at all, totally understand. ${missing[0].question}`
+      : `Thanks for reaching out to NetOne! ${missing[0].question}`;
   return { reply, collected: working, complete: false };
 }
 
@@ -268,15 +309,43 @@ export async function classifyLead(
   return { analysis: classifyDeterministic(message), degraded: true };
 }
 
+/** Normalizes the AI's free-text employmentType guess against the known
+ *  registry tokens (fields.service.ts::EMPLOYMENT_TYPE_OPTIONS) — an
+ *  unmatched guess is dropped rather than stored as a bogus enum value;
+ *  resolveEmploymentCategory() in qualification.service.ts still has the
+ *  free-text `employment` field to fall back on. */
+function normalizeEmploymentType(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const t = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return EMPLOYMENT_TYPE_OPTIONS.some((o) => o.value === t) ? t : null;
+}
+
+/** Derived, never AI-set: the matched knowledge-base product's own category. */
+async function deriveProductCategory(productName: string | null): Promise<string | null> {
+  if (!productName) return null;
+  try {
+    const products = await listProducts();
+    const lower = productName.toLowerCase();
+    const match =
+      products.find((p) => p.name.toLowerCase() === lower) ??
+      products.find((p) => lower.includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(lower));
+    return match?.category ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function converse(
   historyLines: string,
   collected: CollectedProfile,
-  name: string | null
+  name: string | null,
+  fields: QualificationField[] = DEFAULT_QUALIFICATION_FIELDS
 ): Promise<{ turn: AgentTurn; degraded: boolean }> {
   const knowledge = await getKnowledgeContext().catch(() => '');
   const user = `${knowledge ? `KNOWLEDGE BASE:\n${knowledge}\n\n` : ''}Prospect name (if known): ${name ?? 'Unknown'}
 Already collected: ${JSON.stringify(collected)}
-Still missing: ${JSON.stringify(missingFields(collected))}
+Still missing (ask about ONE of these, using the hint as guidance):
+${stillMissingBlock(fields, collected)}
 
 Conversation so far:
 ${historyLines}
@@ -295,14 +364,31 @@ Write the next reply and return the JSON.`;
         location: turn.collected.location ?? collected.location,
         employment: turn.collected.employment ?? collected.employment,
         monthlyIncome: turn.collected.monthlyIncome ?? collected.monthlyIncome,
+        email: turn.collected.email ?? collected.email ?? null,
+        purchaseMethod: turn.collected.purchaseMethod ?? collected.purchaseMethod ?? null,
+        city: turn.collected.city ?? collected.city ?? null,
+        district: turn.collected.district ?? collected.district ?? null,
+        area: turn.collected.area ?? collected.area ?? null,
+        employmentType: normalizeEmploymentType(turn.collected.employmentType) ?? collected.employmentType ?? null,
+        employerName: turn.collected.employerName ?? collected.employerName ?? null,
+        jobTitle: turn.collected.jobTitle ?? collected.jobTitle ?? null,
+        employmentDuration: turn.collected.employmentDuration ?? collected.employmentDuration ?? null,
+        incomeSource: turn.collected.incomeSource ?? collected.incomeSource ?? null,
+        preferredRepaymentPeriod: turn.collected.preferredRepaymentPeriod ?? collected.preferredRepaymentPeriod ?? null,
+        depositAvailable: turn.collected.depositAvailable ?? collected.depositAvailable ?? null,
       };
-      const complete = missingFields(merged).length === 0;
+      // Derived fields — deterministic code decides these, never the AI.
+      merged.province = deriveProvinceFromCity(merged.city) ?? collected.province ?? null;
+      merged.productCategory = (await deriveProductCategory(merged.product)) ?? collected.productCategory ?? null;
+      if (merged.monthlyIncome) merged.incomeVerified = collected.incomeVerified ?? 'declared';
+
+      const complete = missingFields(fields, merged).length === 0;
       return { turn: { reply: turn.reply, collected: merged, complete }, degraded: false };
     } catch (err) {
       logger.warn({ err: String(err) }, 'AI agent failed schema validation — falling back');
     }
   }
-  return { turn: converseDeterministic(historyLines, collected), degraded: true };
+  return { turn: converseDeterministic(historyLines, collected, fields), degraded: true };
 }
 
 // ── low-level fetch with timeout ──────────────────────────────

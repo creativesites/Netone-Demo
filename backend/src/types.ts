@@ -129,15 +129,6 @@ export interface CollectedProfile {
   financingEligibilityStatus?: string | null;
 }
 
-export const REQUIRED_FIELDS: (keyof CollectedProfile)[] = [
-  'name',
-  'product',
-  'financing',
-  'budget',
-  'location',
-  'employment',
-  'monthlyIncome',
-];
 
 /** One line item in the configurable lead-scoring breakdown. */
 export interface ScoreCriterionResult {
