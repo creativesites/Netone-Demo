@@ -2,6 +2,7 @@
 
 import { Check, X, AlertTriangle, Circle, MessageCircle, Zap } from 'lucide-react';
 import type { ActiveEvent, PipelineStep } from '@/lib/types';
+import { formatTime } from '@/lib/format';
 
 function StepIcon({ status }: { status: PipelineStep['status'] }) {
   if (status === 'ok')
@@ -29,12 +30,8 @@ function StepIcon({ status }: { status: PipelineStep['status'] }) {
   );
 }
 
-function fmtTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  } catch {
-    return '';
-  }
+function fmtTime(val: unknown) {
+  return formatTime(val, true, '');
 }
 
 const FINAL_KEYS = ['follow_up_created', 'auto_reply_sent', 'not_a_lead'];

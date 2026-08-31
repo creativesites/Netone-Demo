@@ -1,6 +1,7 @@
 'use client';
 
 import type { LeadEvent } from '@/lib/types';
+import { formatTime } from '@/lib/format';
 
 const PRETTY: Record<string, string> = {
   message_received: 'Message received',
@@ -25,12 +26,8 @@ function label(e: LeadEvent): string {
   return PRETTY[e.event_type] ?? e.event_type;
 }
 
-function fmt(iso: string) {
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  } catch {
-    return '';
-  }
+function fmt(val: unknown) {
+  return formatTime(val, true, '');
 }
 
 export function Timeline({ events }: { events: LeadEvent[] }) {

@@ -10,7 +10,18 @@ import type {
   PipelineStep,
 } from './types';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4702';
+function getApiBase(): string {
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  if (typeof window !== 'undefined') {
+    if (envUrl && envUrl.includes('localhost') && !window.location.hostname.includes('localhost')) {
+      return '';
+    }
+    if (window.location.protocol === 'https:' && envUrl?.startsWith('http:')) {
+      return '';
+    }
+  }
+  return envUrl || '';
+}
 
 interface StreamState {
   connected: boolean;
@@ -90,7 +101,9 @@ export function useLeadStream() {
   }, []);
 
   useEffect(() => {
-    const es = new EventSource(`${BACKEND}/api/stream`);
+    const base = getApiBase();
+    const streamUrl = `${base}/api/stream`;
+    const es = new EventSource(streamUrl);
     esRef.current = es;
     es.onmessage = (e) => {
       try {

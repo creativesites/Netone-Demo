@@ -9,6 +9,7 @@ import { LeadDetail } from '@/components/LeadDetail';
 import { Timeline } from '@/components/Timeline';
 import { DiscoveryPanel } from '@/components/DiscoveryPanel';
 import { channelLabel } from '@/lib/channel';
+import { formatDateTime } from '@/lib/format';
 import type { Lead, LeadEvent } from '@/lib/types';
 
 export default function LeadPage() {
@@ -64,7 +65,7 @@ export default function LeadPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-[1.3fr_1fr]">
           <div className="space-y-4">
-            <LeadDetail lead={lead} />
+            <LeadDetail lead={lead} hideFullProfileLink={true} />
             {isSalesReady && !isConverted && (
               <button
                 onClick={markConverted}
@@ -95,7 +96,7 @@ export default function LeadPage() {
               <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">Original message</div>
               <p className="text-sm italic text-ink-700">&ldquo;{lead.initial_message}&rdquo;</p>
               <div className="mt-2 text-[11px] text-ink-400">
-                {new Date(lead.created_at).toLocaleString()} · via {channelLabel(lead.channel)}
+                {formatDateTime(lead.created_at)} · via {channelLabel(lead.channel)}
               </div>
             </div>
           </div>

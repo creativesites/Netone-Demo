@@ -3,16 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, FileText, Link2, Upload, X, CheckCircle2, Loader2 } from 'lucide-react';
 import { apiGet, apiPost, apiDelete } from '@/lib/realtime';
+import { formatDateTime } from '@/lib/format';
 import type { KbDocument } from '@/lib/types';
 
 const INGEST_STEPS = ['Uploading', 'Parsing content', 'Chunking', 'Generating embeddings', 'Indexing'];
 
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
+function fmtDate(val: unknown) {
+  return formatDateTime(val, '');
 }
 
 export function DocumentsTab() {

@@ -4,13 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Send, Bot, User, AlertTriangle, ArrowLeft, UserCheck, RotateCcw } from 'lucide-react';
 import type { ChatMessage, Conversation } from '@/lib/types';
 import { channelLabel } from '@/lib/channel';
+import { formatTime } from '@/lib/format';
 
-function fmt(iso: string) {
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
+function fmt(val: unknown) {
+  return formatTime(val, false, '');
 }
 
 export function MessageThread({

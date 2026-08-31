@@ -338,42 +338,63 @@ export default function HelpPage() {
           <NumberedStep n={2} title="Find the connected WhatsApp number">
             <p>
               The WhatsApp integration is already connected for this demonstration — there is nothing to set up
-              or pair. Look at the top of the Dashboard page for the WhatsApp status widget; it shows the
-              connected number below.
+              or pair. The connected NetOne demo line is <strong className="font-bold text-ink-900">0762 368 105</strong> (+260 762 368 105).
             </p>
-            <div className="flex items-center gap-3 rounded-xl border border-line bg-white px-3.5 py-2.5">
-              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${connected ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-ink-400'}`}>
-                <Smartphone size={15} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-                  {connected ? 'Connected — text this number' : 'Not connected right now'}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white px-3.5 py-2.5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <Smartphone size={15} />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    Active Demo Line — Ready to Test
+                  </div>
+                  <div className="truncate text-base font-bold text-ink-900">0762 368 105</div>
                 </div>
-                <div className="truncate text-sm font-bold text-ink-900">{number ?? '—'}</div>
               </div>
-              {number && (
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://wa.me/260762368105?text=Hi%2C%20I%27m%20interested%20in%20buying%20a%20NetOne%20laptop%20on%20credit.%20What%20financing%20options%20do%20you%20have%3F"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-700"
+                >
+                  <MessageCircle size={13} /> Chat on WhatsApp
+                </a>
                 <button
-                  onClick={() => copy('wa-number', number)}
+                  onClick={() => copy('wa-number', '0762 368 105')}
                   className="flex shrink-0 items-center gap-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 text-[11px] font-medium text-ink-600 transition-colors hover:bg-brand-50 hover:text-brand-600"
                 >
                   {copiedKey === 'wa-number' ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
                   {copiedKey === 'wa-number' ? 'Copied' : 'Copy'}
                 </button>
-              )}
+              </div>
             </div>
-            {!connected && (
-              <p className="text-[12px] text-amber-700">
-                If this shows &ldquo;not connected,&rdquo; contact the demonstration administrator before proceeding —
-                this is the one thing that needs to be set up in advance, not something a tester should need to fix.
-              </p>
-            )}
           </NumberedStep>
 
-          <NumberedStep n={3} title="Send a test enquiry">
-            <p>From another phone, send a message to the connected number above. Tap any example below to copy it, or write your own.</p>
+          <NumberedStep n={3} title="Send a test enquiry as a customer">
+            <p>
+              On your phone, pretend you are a prospective client inquiring about purchasing a laptop or requesting financing on credit. Send a message to <strong className="font-semibold text-ink-800">0762 368 105</strong>.
+            </p>
+            <p className="text-[12px] text-ink-500">
+              Tap any example prompt below to copy it or open directly in WhatsApp:
+            </p>
             <div className="space-y-1.5">
               {FIRST_MESSAGES.map((m) => (
-                <CopyableMessage key={m} text={m} />
+                <div key={m} className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <CopyableMessage text={m} />
+                  </div>
+                  <a
+                    href={`https://wa.me/260762368105?text=${encodeURIComponent(m)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Send via WhatsApp"
+                    className="flex shrink-0 items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                  >
+                    Send <ExternalLink size={11} />
+                  </a>
+                </div>
               ))}
             </div>
           </NumberedStep>

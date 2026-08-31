@@ -4,6 +4,7 @@ import { useLeadStream } from '@/lib/useLeadStream';
 import { useRealtimeDoc, useRealtimeCollection } from '@/lib/realtime';
 import type { IntegrationStatus, Lead, Metrics } from '@/lib/types';
 import { Header } from '@/components/Header';
+import { LiveDemoBanner } from '@/components/LiveDemoBanner';
 import { MetricsRow } from '@/components/MetricsRow';
 import { IntegrationFlow } from '@/components/IntegrationFlow';
 import { ArchitectureDiagram } from '@/components/architecture/ArchitectureDiagram';
@@ -47,6 +48,8 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
       <Header status={status} connected={connected} />
+
+      <LiveDemoBanner />
 
       <section className="mt-6">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">Today&apos;s Activity</h2>

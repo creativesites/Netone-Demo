@@ -7,6 +7,7 @@ import { useRealtimeCollection } from '@/lib/realtime';
 import { exportLeadsToExcel } from '@/lib/exportLeads';
 import { bitrixLeadUrl } from '@/lib/bitrix';
 import { channelLabel } from '@/lib/channel';
+import { formatDateTime } from '@/lib/format';
 import { CreditRiskBadge } from '@/components/CreditRiskBadge';
 import { StageBadge } from '@/components/StageBadge';
 import type { Lead, QualificationStage } from '@/lib/types';
@@ -21,12 +22,8 @@ function intentTone(pi: string | null) {
   return 'text-ink-500';
 }
 
-function fmt(iso: string) {
-  try {
-    return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return iso;
-  }
+function fmt(val: unknown) {
+  return formatDateTime(val);
 }
 
 export default function LeadsPage() {

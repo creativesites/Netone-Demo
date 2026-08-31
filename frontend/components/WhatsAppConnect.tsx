@@ -1,10 +1,33 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, QrCode, Smartphone, Copy, Check, RefreshCw, LogOut, AlertTriangle } from 'lucide-react';
+import {
+  X,
+  QrCode,
+  Smartphone,
+  Copy,
+  Check,
+  RefreshCw,
+  LogOut,
+  AlertTriangle,
+  ExternalLink,
+  MessageSquare,
+  Sparkles,
+} from 'lucide-react';
 import { useWhatsAppStatus, displayWaNumber as displayNumber, type WaStatus } from '@/lib/useWhatsAppStatus';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4702';
+function getApiBase(): string {
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  if (typeof window !== 'undefined') {
+    if (envUrl && envUrl.includes('localhost') && !window.location.hostname.includes('localhost')) {
+      return '';
+    }
+    if (window.location.protocol === 'https:' && envUrl?.startsWith('http:')) {
+      return '';
+    }
+  }
+  return envUrl || '';
+}
 
 function tone(status?: string) {
   if (status === 'connected') return { dot: 'bg-emerald-500', text: 'text-emerald-600', label: 'Connected', pulse: true };
@@ -16,45 +39,24 @@ export function WhatsAppConnect() {
   const { status, refresh: poll } = useWhatsAppStatus();
   const [open, setOpen] = useState(false);
 
-  // Auto-close the modal once linked.
-  useEffect(() => {
-    if (status.status === 'connected' && open) {
-      const t = setTimeout(() => setOpen(false), 1500);
-      return () => clearTimeout(t);
-    }
-  }, [status.status, open]);
-
   const t = tone(status.status);
-  const number = displayNumber(status.user);
+  const number = displayNumber(status.user) || '0762 368 105';
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        title={number ? `Text this number to run the live demo: ${number}` : undefined}
+        title={`Connected demo WhatsApp number: ${number} (Click for testing options)`}
         className="flex items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2 transition-colors hover:bg-surface-muted"
       >
-        {/* <span className="relative flex h-2.5 w-2.5">
-          {t.pulse && <span className={`absolute inline-flex h-full w-full rounded-full ${t.dot} opacity-50 animate-pulse-ring`} />}
-          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${t.dot}`} />
-        </span> */}
         <span className="relative flex h-2.5 w-2.5">
-          {t.pulse && <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-50 animate-pulse-ring`} />}
-          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500`} />
+          {t.pulse && <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-50 animate-pulse-ring" />}
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
         </span>
         <div className="text-left leading-tight">
           <div className="text-[10px] uppercase tracking-wide text-ink-400">WhatsApp</div>
-          <div className={`text-xs font-semibold text-emerald-600`}>
-            {/* {status.status === 'connected' && number ? number : t.label} */}
-            {/* {number} */}
-            0762 368 105
-          </div>
+          <div className="text-xs font-semibold text-emerald-600">{number}</div>
         </div>
-        {/* {status.status !== 'connected' && (
-          <span className="ml-1 rounded-lg bg-brand-500 px-2 py-0.5 text-[11px] font-semibold text-white">Connect</span>
-        )} */}
-        
-        
       </button>
 
       {open && <ConnectModal status={status} onClose={() => setOpen(false)} onChanged={poll} />}
@@ -76,16 +78,17 @@ function ConnectModal({
   const [busy, setBusy] = useState(false);
   const [qrBust, setQrBust] = useState(Date.now());
   const [copied, setCopied] = useState(false);
+  const [copiedNum, setCopiedNum] = useState(false);
   const startedQr = useRef(false);
 
-  // const connected = status.status === 'connected';
-  const connected = true;
+  const connected = status.status === 'connected';
+  const number = displayNumber(status.user) || '0762 368 105';
 
   // Kick off a QR session when the QR tab opens (once).
   useEffect(() => {
     if (tab === 'qr' && !connected && !startedQr.current) {
       startedQr.current = true;
-      fetch(`${BACKEND}/api/whatsapp/connect/qr`, { method: 'POST' }).then(onChanged).catch(() => {});
+      fetch(`${getApiBase()}/api/whatsapp/connect/qr`, { method: 'POST' }).then(onChanged).catch(() => {});
     }
   }, [tab, connected, onChanged]);
 
@@ -103,7 +106,7 @@ function ConnectModal({
   async function disconnect() {
     setLoggingOut(true);
     try {
-      await fetch(`${BACKEND}/api/whatsapp/logout`, { method: 'POST' });
+      await fetch(`${getApiBase()}/api/whatsapp/logout`, { method: 'POST' });
       setConfirmingLogout(false);
       onChanged();
     } finally {
@@ -116,7 +119,7 @@ function ConnectModal({
     if (digits.length < 7) return;
     setBusy(true);
     try {
-      await fetch(`${BACKEND}/api/whatsapp/connect/code`, {
+      await fetch(`${getApiBase()}/api/whatsapp/connect/code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: digits }),
@@ -139,20 +142,29 @@ function ConnectModal({
     setTimeout(() => setCopied(false), 1500);
   }
 
+  function copyNumber() {
+    navigator.clipboard?.writeText(number);
+    setCopiedNum(true);
+    setTimeout(() => setCopiedNum(false), 1500);
+  }
+
+  const sampleMessage = "Hi, I'm interested in buying a NetOne laptop on credit. What financing options do you have?";
+  const waChatUrl = `https://wa.me/260762368105?text=${encodeURIComponent(sampleMessage)}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-md overflow-hidden rounded-3xl border border-line bg-white shadow-xl"
+        className="w-full max-w-md overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white">
               <Smartphone size={16} />
             </span>
             <div>
-              <div className="text-sm font-semibold text-ink-900">Connect WhatsApp</div>
-              <div className="text-[11px] text-ink-500">Link the demo phone to go live</div>
+              <div className="text-sm font-semibold text-ink-900">WhatsApp Live Line</div>
+              <div className="text-[11px] text-ink-500">Autonomous AI Lead Capture &amp; Qualification</div>
             </div>
           </div>
           <button onClick={onClose} className="rounded-full p-1.5 text-ink-400 hover:bg-surface-muted">
@@ -161,27 +173,53 @@ function ConnectModal({
         </div>
 
         {connected ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white">
+          <div className="flex flex-col items-center gap-4 px-6 py-6 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
               <Check size={28} />
             </span>
-            <div className="text-base font-semibold text-ink-900">WhatsApp linked</div>
-            {/* <div className="text-sm text-ink-500">{displayNumber(status.user) ?? 'Device connected'}</div> */}
-             <div className="text-sm text-ink-500">0762 368 105</div>
+
+            <div>
+              <div className="text-base font-bold text-ink-900">Demo WhatsApp Connected</div>
+              <div className="mt-1 text-2xl font-bold tracking-tight text-ink-900">{number}</div>
+              <div className="text-xs text-ink-400">+260 762 368 105 · Active &amp; Listening</div>
+            </div>
+
+            <p className="text-xs leading-relaxed text-ink-600">
+              This number is connected to the NetOne lead pipeline. Send a WhatsApp message pretending to be a customer looking for a laptop, and watch the AI process the conversation live.
+            </p>
+
+            <div className="flex w-full flex-col gap-2">
+              <a
+                href={waChatUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+              >
+                <MessageSquare size={15} /> Chat on WhatsApp <ExternalLink size={13} />
+              </a>
+
+              <button
+                onClick={copyNumber}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-muted px-4 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+              >
+                {copiedNum ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                {copiedNum ? 'Copied Number!' : 'Copy Number'}
+              </button>
+            </div>
+
             {!confirmingLogout ? (
               <button
                 onClick={() => setConfirmingLogout(true)}
-                className="mt-3 flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-xs font-medium text-ink-500 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                className="mt-2 flex items-center gap-1.5 text-xs text-ink-400 transition-colors hover:text-rose-600"
               >
-                <LogOut size={13} /> Disconnect this number
+                <LogOut size={12} /> Disconnect or relink another number
               </button>
             ) : (
-              <div className="mt-3 w-full rounded-xl border border-rose-200 bg-rose-50 p-3 text-left">
+              <div className="mt-2 w-full rounded-xl border border-rose-200 bg-rose-50 p-3 text-left">
                 <div className="flex items-start gap-2 text-[12px] text-rose-700">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                   <span>
-                    This unlinks the current number and clears the session. Anyone with this dashboard can
-                    then connect their own WhatsApp to run the demo.
+                    This unlinks the current number. You will need to scan a new QR code to reconnect.
                   </span>
                 </div>
                 <div className="mt-2 flex justify-end gap-2">
@@ -224,7 +262,7 @@ function ConnectModal({
                 <div className="rounded-2xl border border-line bg-white p-2.5 sm:p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={`${BACKEND}/api/whatsapp/qr?t=${qrBust}`}
+                    src={`${getApiBase()}/api/whatsapp/qr?t=${qrBust}`}
                     alt="WhatsApp QR"
                     width={240}
                     height={240}

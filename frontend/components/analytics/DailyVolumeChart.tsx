@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { formatDate } from '@/lib/format';
 
-function fmtDay(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+function fmtDay(val: unknown) {
+  const d = formatDate(val);
+  // Strip year if present for compact axis
+  return d.replace(/, \d{4}$/, '');
 }
 
 /** Simple, single-series (one hue — magnitude only) daily bar chart with a hover tooltip. */

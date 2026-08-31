@@ -19,11 +19,23 @@ import {
 } from 'firebase/firestore';
 import { getDb, firebaseEnabled } from './firebase';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4702';
+function getApiBase(): string {
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  if (typeof window !== 'undefined') {
+    if (envUrl && envUrl.includes('localhost') && !window.location.hostname.includes('localhost')) {
+      return '';
+    }
+    if (window.location.protocol === 'https:' && envUrl?.startsWith('http:')) {
+      return '';
+    }
+  }
+  return envUrl || '';
+}
 
 async function restGet<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${BACKEND}${path}`, { cache: 'no-store' });
+    const base = getApiBase();
+    const res = await fetch(`${base}${path}`, { cache: 'no-store' });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -176,7 +188,8 @@ export function useRealtimeMessages(conversationId: number | null): any[] {
 }
 
 export async function apiPut(path: string, body: unknown) {
-  return fetch(`${BACKEND}${path}`, {
+  const base = getApiBase();
+  return fetch(`${base}${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -184,7 +197,8 @@ export async function apiPut(path: string, body: unknown) {
 }
 
 export async function apiPost(path: string, body: unknown) {
-  return fetch(`${BACKEND}${path}`, {
+  const base = getApiBase();
+  return fetch(`${base}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -192,9 +206,11 @@ export async function apiPost(path: string, body: unknown) {
 }
 
 export async function apiGet(path: string) {
-  return fetch(`${BACKEND}${path}`, { cache: 'no-store' });
+  const base = getApiBase();
+  return fetch(`${base}${path}`, { cache: 'no-store' });
 }
 
 export async function apiDelete(path: string) {
-  return fetch(`${BACKEND}${path}`, { method: 'DELETE' });
+  const base = getApiBase();
+  return fetch(`${base}${path}`, { method: 'DELETE' });
 }
