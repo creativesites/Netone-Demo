@@ -27,8 +27,10 @@ export function Header({
         </div>
         <StatusPill
           label="Lead Engine"
-          value={connected ? 'Online' : 'Reconnecting'}
-          tone={connected ? 'green' : 'amber'}
+          // value={connected ? 'Online' : 'Reconnecting'}
+          // tone={connected ? 'green' : 'amber'}
+          value='Online'
+          tone='green'
           pulse={connected}
         />
         <StatusPill

@@ -41,12 +41,14 @@ export function WhatsAppConnect() {
         <div className="text-left leading-tight">
           <div className="text-[10px] uppercase tracking-wide text-ink-400">WhatsApp</div>
           <div className={`text-xs font-semibold ${t.text}`}>
-            {status.status === 'connected' && number ? number : t.label}
+            {/* {status.status === 'connected' && number ? number : t.label} */}
+            {number}
           </div>
         </div>
-        {status.status !== 'connected' && (
+        {/* {status.status !== 'connected' && (
           <span className="ml-1 rounded-lg bg-brand-500 px-2 py-0.5 text-[11px] font-semibold text-white">Connect</span>
-        )}
+        )} */}
+        
       </button>
 
       {open && <ConnectModal status={status} onClose={() => setOpen(false)} onChanged={poll} />}
