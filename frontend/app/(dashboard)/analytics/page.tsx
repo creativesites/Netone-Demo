@@ -5,6 +5,7 @@ import { useRealtimeDoc } from '@/lib/realtime';
 import type { Analytics } from '@/lib/types';
 import { DailyVolumeChart } from '@/components/analytics/DailyVolumeChart';
 import { BreakdownBars, type BreakdownRow } from '@/components/analytics/BreakdownBars';
+import { StageFunnel } from '@/components/analytics/StageFunnel';
 
 function StatTile({ label, value, suffix, accent, Icon }: { label: string; value: number; suffix?: string; accent: string; Icon: LucideIcon }) {
   return (
@@ -21,27 +22,6 @@ function StatTile({ label, value, suffix, accent, Icon }: { label: string; value
     </div>
   );
 }
-
-const STAGE_LABEL: Record<string, string> = {
-  NEW: 'New',
-  DISCOVERING: 'Discovering',
-  QUALIFICATION_PENDING: 'Qualification pending',
-  QUALIFIED: 'Qualified',
-  NEEDS_REVIEW: 'Needs review',
-  DISQUALIFIED: 'Disqualified',
-  SALES_READY: 'Sales ready',
-  CONVERTED: 'Converted',
-};
-const STAGE_COLOR: Record<string, string> = {
-  NEW: 'bg-gray-300',
-  DISCOVERING: 'bg-sky-500',
-  QUALIFICATION_PENDING: 'bg-teal-500',
-  QUALIFIED: 'bg-emerald-500',
-  NEEDS_REVIEW: 'bg-amber-500',
-  DISQUALIFIED: 'bg-rose-400',
-  SALES_READY: 'bg-emerald-600',
-  CONVERTED: 'bg-violet-500',
-};
 
 const CREDIT_RISK_LABEL: Record<string, string> = {
   low: 'Low risk',
@@ -70,13 +50,6 @@ export default function AnalyticsPage() {
     byCreditRisk: [],
     byChannel: [],
   };
-
-  const stageRows: BreakdownRow[] = a.byStage.map((r) => ({
-    key: r.stage,
-    label: STAGE_LABEL[r.stage] ?? r.stage,
-    count: r.count,
-    colorClass: STAGE_COLOR[r.stage] ?? 'bg-gray-300',
-  }));
 
   const creditRiskRows: BreakdownRow[] = a.byCreditRisk.map((r) => ({
     key: r.risk,
@@ -124,8 +97,11 @@ export default function AnalyticsPage() {
         <DailyVolumeChart data={a.dailyVolume} />
       </div>
 
+      <div className="mt-4">
+        <StageFunnel byStage={a.byStage} />
+      </div>
+
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <BreakdownBars title="Stage breakdown" rows={stageRows} />
         <BreakdownBars title="Credit-risk distribution" rows={creditRiskRows} emptyLabel="No financing-interested leads yet." />
         <BreakdownBars title="Top products" rows={productRows} emptyLabel="No product interest recorded yet." />
         <BreakdownBars title="By channel" rows={channelRows} />
