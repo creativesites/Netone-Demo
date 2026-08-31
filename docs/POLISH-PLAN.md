@@ -33,6 +33,8 @@ demo script, discovery questions, and documentation deliverables).
 | 12 | CEO-demo polish | ✅ Done (first pass) |
 | 13 | Documentation (`docs/*.md`) | 🔲 Not started |
 | 14 | Configurable qualification & discovery framework | ✅ Done (real live test) |
+| 15 | Facebook Messenger channel | ✅ Backend/frontend done (real live test); Meta app + Cloudflare Tunnel setup pending user |
+| 16 | CEO-demo wow features (hot-lead alert, stage funnel, ROI page) | ✅ Done (real live test) |
 
 Update the emoji + a one-line note per phase as work lands. Nothing later
 than the first 🔲 should be started out of order unless explicitly noted.
@@ -833,3 +835,95 @@ per-lead income-threshold enforcement, actual credit approval, or any
 NetOne-specific policy — every field/threshold/rule is explicitly sample/
 demo configuration pending NetOne's real requirements, per the original
 request.
+
+### Facebook Messenger channel + CEO-demo wow features (2026-08-31)
+User request: with more time before the CEO demo, add a real Facebook
+Page as a second live channel, and add a few high-impact polish features
+to make the demo land harder. Started with a repo audit (this branch had
+also moved forward from another contributor's commits — WhatsApp connect
+UI fixes, a live-demo WhatsApp banner, a Next.js API proxy route for
+mixed-content/CORS — pulled and built on top of, not overwritten), then
+an approved plan before touching code.
+
+**Facebook Messenger channel.** The pipeline was already built channel-
+agnostic for exactly this moment — `types.ts`'s `Channel` union already
+included `'facebook'`, and `leads.repo.ts`/`frontend/lib/channel.ts`
+already had Facebook labels. Only the missing piece was built:
+- `facebook.adapter.ts` turns one Meta Messenger `messaging` entry into
+  the exact same `NormalizedLeadEvent` shape `whatsapp.adapter.ts`
+  produces — nothing downstream (AI, qualification, Bitrix, analytics)
+  needed to change.
+- `facebookGraph.service.ts` — thin Graph API client (send + profile-name
+  lookup, since Messenger doesn't hand you a display name the way
+  WhatsApp payloads do).
+- `routes/facebook.ts` — GET verify handshake + POST webhook, its own
+  encapsulated Fastify plugin so its raw-body content-type parser (needed
+  to verify Meta's `X-Hub-Signature-256` against the exact original
+  bytes) never touches the rest of the app's JSON parsing.
+- `lead.service.ts` gained one `sendReply()` dispatcher (channel branch
+  for outbound delivery) — the AI prompt and qualification rules are
+  completely unchanged, so Nia's tone/logic is identical on both channels
+  by design (an explicit choice: "one AI brain, many channels" is the
+  strongest, simplest story for the CEO).
+- Frontend: `LiveDemoBanner` gained a Messenger card (m.me link once
+  connected, honest "not yet connected" state otherwise — Messenger deep
+  links can't prefill text the way `wa.me` links can, so scenario copy-
+  buttons are shared across both channels), `ConversationList` avatars
+  are now channel-colored, and `help/page.tsx`'s "what's connected"
+  section, intro copy, and walkthrough step 2 all dynamically mention
+  Facebook once `/api/status` reports it connected — never a hardcoded
+  claim that might not be true yet.
+
+**Infrastructure blocker identified and handed to the user, not
+skipped:** Meta hard-requires a real HTTPS webhook URL with a trusted
+cert; this box currently serves plain HTTP on a bare IP
+(`DEPLOYMENT.md`'s "no domain/TLS yet" path). User chose Cloudflare
+Tunnel to expose the backend for Meta without any code/compose changes.
+Also needs a Meta Developer App + Page + tokens, which only the user can
+create (their Meta login) — a step-by-step checklist was handed off
+rather than guessed at, with an explicit note to verify Meta's exact
+current dashboard screens live rather than trust a memorized flow.
+
+**Verified without real Meta credentials** (pending the user's setup):
+live against a local Postgres, a correctly HMAC-signed synthetic
+Messenger payload created a real lead through the unchanged qualification
+pipeline and generated a real AI reply; incorrectly-signed and unsigned
+payloads were both silently rejected with no lead created; echo events
+were skipped. The outbound send and profile-lookup calls reached the
+real Graph API and got back a genuine "Invalid OAuth access token" error
+(proving the request shape is correct) rather than a network/format
+error. `byChannel`/`byStage` analytics picked up the new channel with
+zero analytics code changes. **Remaining:** a true end-to-end test with
+a real Facebook account messaging the connected Page, once the user
+completes the Meta + tunnel setup.
+
+**Three wow features**, all frontend-only, reusing existing plumbing:
+- `HotLeadAlert.tsx` — a toast (+ a WebAudio-synthesized chime, no audio
+  asset to ship) the moment a lead first reaches QUALIFIED/SALES_READY,
+  reusing the existing SSE lead stream (`useLeadStream`) that already
+  pushes every lead update. Mounted once in `Shell.tsx` so it fires
+  regardless of which dashboard page is open, with a localStorage-backed
+  mute toggle.
+- `StageFunnel.tsx` on Analytics — replaces the flat "Stage breakdown"
+  bar list with a funnel-shaped view of the same `byStage` data, showing
+  the happy path (NEW → DISCOVERING → QUALIFICATION_PENDING → QUALIFIED
+  → SALES_READY → CONVERTED) as shrinking bars; NEEDS_REVIEW/DISQUALIFIED
+  are called out separately as "diverted from the funnel" rather than
+  forced into a shape that would make them non-monotonic and misleading.
+  Labeled honestly as a point-in-time snapshot, not a cohort-retention
+  funnel — no new backend query was added.
+- `roi/page.tsx` — a business-framed Executive ROI summary: real lead
+  counts from the existing `/api/analytics`, combined with two user-
+  adjustable assumptions (avg minutes a rep spends per lead, rep hourly
+  cost) to estimate time/cost saved, persisted to localStorage and
+  explicitly labeled as illustrative starting points rather than NetOne-
+  supplied figures — same "sample/demo config, real numbers stay real"
+  framing used throughout this project.
+
+**Verification:** `tsc --noEmit` and `next build` clean after every
+piece. Seeded real leads across DISCOVERING/QUALIFIED/SALES_READY/
+DISQUALIFIED via the actual pipeline against a local Postgres for each
+feature; confirmed `/api/analytics` and `/api/status` responses matched
+what each page displays; confirmed new UI strings/logic shipped in the
+compiled dev bundles for every touched route. Commits pushed after each
+piece, matching this session's established pattern.
