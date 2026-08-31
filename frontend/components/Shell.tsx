@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
-import { LayoutDashboard, MessagesSquare, Users, BarChart3, SlidersHorizontal, Info, BookOpen, HelpCircle, Menu, X } from 'lucide-react';
+import { LayoutDashboard, MessagesSquare, Users, BarChart3, LineChart, SlidersHorizontal, Info, BookOpen, HelpCircle, Menu, X } from 'lucide-react';
 import { AutoReplyToggle } from './AutoReplyToggle';
 import { GuidedTour } from './GuidedTour';
 import { HotLeadAlert } from './HotLeadAlert';
@@ -16,6 +16,7 @@ const nav = [
   { href: '/inbox', label: 'Inbox', icon: MessagesSquare, tourId: 'nav-inbox' },
   { href: '/leads', label: 'Leads', icon: Users, tourId: 'nav-leads' },
   { href: '/analytics', label: 'Analytics', icon: BarChart3, tourId: 'nav-analytics' },
+  { href: '/roi', label: 'ROI Summary', icon: LineChart, tourId: 'nav-roi' },
   { href: '/knowledge-base', label: 'Knowledge', icon: BookOpen, tourId: 'nav-knowledge' },
   { href: '/settings/qualification-rules', label: 'Rules', icon: SlidersHorizontal, tourId: 'nav-rules' },
   { href: '/help', label: 'Help', icon: HelpCircle, tourId: 'nav-help' },
