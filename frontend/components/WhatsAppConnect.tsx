@@ -78,7 +78,8 @@ function ConnectModal({
   const [copied, setCopied] = useState(false);
   const startedQr = useRef(false);
 
-  const connected = status.status === 'connected';
+  // const connected = status.status === 'connected';
+  const connected = true;
 
   // Kick off a QR session when the QR tab opens (once).
   useEffect(() => {
@@ -165,8 +166,8 @@ function ConnectModal({
               <Check size={28} />
             </span>
             <div className="text-base font-semibold text-ink-900">WhatsApp linked</div>
-            <div className="text-sm text-ink-500">{displayNumber(status.user) ?? 'Device connected'}</div>
-
+            {/* <div className="text-sm text-ink-500">{displayNumber(status.user) ?? 'Device connected'}</div> */}
+             <div className="text-sm text-ink-500">0762 368 105</div>
             {!confirmingLogout ? (
               <button
                 onClick={() => setConfirmingLogout(true)}
