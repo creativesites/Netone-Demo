@@ -7,6 +7,9 @@ import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { LayoutDashboard, MessagesSquare, Users, BarChart3, SlidersHorizontal, Info, BookOpen, HelpCircle, Menu, X } from 'lucide-react';
 import { AutoReplyToggle } from './AutoReplyToggle';
 import { GuidedTour } from './GuidedTour';
+import { HotLeadAlert } from './HotLeadAlert';
+import { useRealtimeDoc } from '@/lib/realtime';
+import type { IntegrationStatus } from '@/lib/types';
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, tourId: 'nav-dashboard' },
@@ -57,12 +60,14 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   );
 }
 
-const FOOTNOTE =
-  'Omnichannel Marketing-to-CRM. WhatsApp is the live demo channel; Facebook, Instagram & the website feed the same pipeline in production.';
-
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const status = useRealtimeDoc<IntegrationStatus>('dashboard/status', '/api/status', (r) => r as IntegrationStatus);
+  const facebookConnected = status?.facebook?.status === 'connected';
+  const footnote = facebookConnected
+    ? 'Omnichannel Marketing-to-CRM. WhatsApp and Facebook Messenger are both live demo channels; Instagram & the website feed the same pipeline in production.'
+    : 'Omnichannel Marketing-to-CRM. WhatsApp is the live demo channel; Facebook, Instagram & the website feed the same pipeline in production.';
 
   // Close the drawer on route change, and don't let it survive a resize to desktop.
   useEffect(() => {
@@ -80,6 +85,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-surface-muted">
       <GuidedTour />
+      <HotLeadAlert />
       {/* Sidebar (desktop) */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-white/70 p-4 backdrop-blur md:flex">
         <div className="mb-6">
@@ -87,7 +93,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <NavLinks pathname={pathname} />
         <div className="mt-auto rounded-xl border border-line bg-surface-muted p-3 text-[10px] leading-relaxed text-ink-400">
-          {FOOTNOTE}
+          {footnote}
         </div>
       </aside>
 
@@ -108,7 +114,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </div>
             <NavLinks pathname={pathname} onNavigate={() => setMenuOpen(false)} />
             <div className="mt-auto rounded-xl border border-line bg-surface-muted p-3 text-[10px] leading-relaxed text-ink-400">
-              {FOOTNOTE}
+              {footnote}
             </div>
           </div>
         </div>
