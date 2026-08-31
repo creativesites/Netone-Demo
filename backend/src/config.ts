@@ -43,6 +43,13 @@ export const config = {
     assignedById: process.env.BITRIX24_ASSIGNED_BY_ID ?? '',
   },
 
+  facebook: {
+    appSecret: process.env.FACEBOOK_APP_SECRET ?? '',
+    verifyToken: process.env.FACEBOOK_VERIFY_TOKEN ?? '',
+    pageAccessToken: process.env.FACEBOOK_PAGE_ACCESS_TOKEN ?? '',
+    pageId: process.env.FACEBOOK_PAGE_ID ?? '',
+  },
+
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID ?? '',
     // Path to the service-account JSON (relative to backend/ or absolute).
@@ -60,4 +67,5 @@ export const flags = {
   hasGemini: !!config.ai.gemini.apiKey,
   hasBitrix: !!config.bitrix.webhookUrl,
   hasFirebase: !!config.firebase.projectId,
+  hasFacebook: !!config.facebook.pageAccessToken && !!config.facebook.appSecret,
 };

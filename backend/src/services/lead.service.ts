@@ -19,6 +19,7 @@ import { classifyLead, converse } from './ai.service.js';
 import { qualify } from './qualification.service.js';
 import { computeDiscovery } from './discovery.service.js';
 import { bitrix24Adapter } from '../adapters/crm/bitrix24.adapter.js';
+import { sendMessengerMessage } from './facebookGraph.service.js';
 import { getSettings, getQualificationRules } from '../db/settings.repo.js';
 import {
   claimMessage,
@@ -403,10 +404,10 @@ async function runConversationalAgent(
     return;
   }
 
-  // Send the reply over WhatsApp (best-effort) and record it in the inbox.
-  // raw_reply_address (the exact JID) takes priority over phone — replying by
-  // reconstructing a JID from a phone number fails for LID-identified contacts.
-  const sent = await sendWhatsapp(conv.raw_reply_address ?? conv.phone ?? conv.external_contact_id, turn.reply);
+  // Send the reply over the contact's own channel (best-effort) and record
+  // it in the inbox — the AI/qualification layers above never branch on
+  // channel; this dispatch is the one place outbound delivery has to.
+  const sent = await sendReply(conv, turn.reply);
   const outbound = await addMessage(conv.id, 'outbound', 'agent', turn.reply, null, sent ? 'sent' : 'failed');
   const refreshed = await refreshConversation(conv.id);
   await mirrorMessage(conv.id, outbound as unknown as Record<string, unknown>);
@@ -414,7 +415,7 @@ async function runConversationalAgent(
   await step(
     correlationId,
     'auto_reply_sent',
-    sent ? 'Assistant replied' : 'Reply failed to send — WhatsApp unreachable',
+    sent ? 'Assistant replied' : `Reply failed to send — ${conv.channel} unreachable`,
     sent ? 'ok' : 'error',
     truncate(turn.reply, 60),
     lead.id
@@ -490,4 +491,17 @@ async function sendWhatsapp(recipient: string, text: string): Promise<boolean> {
     logger.warn({ err: String(err) }, 'WhatsApp send failed (service offline?)');
     return false;
   }
+}
+
+/** Dispatches an outbound reply to whichever channel this conversation is
+ *  on — the one place the pipeline needs to know a channel exists beyond
+ *  WhatsApp. The AI and qualification layers never see this branch. */
+async function sendReply(conv: Conversation, text: string): Promise<boolean> {
+  if (conv.channel === 'facebook') {
+    return sendMessengerMessage(conv.external_contact_id, text);
+  }
+  // WhatsApp: raw_reply_address (the exact JID) takes priority over phone —
+  // replying by reconstructing a JID from a phone number fails for
+  // LID-identified contacts.
+  return sendWhatsapp(conv.raw_reply_address ?? conv.phone ?? conv.external_contact_id, text);
 }
