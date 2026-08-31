@@ -34,20 +34,26 @@ export function WhatsAppConnect() {
         title={number ? `Text this number to run the live demo: ${number}` : undefined}
         className="flex items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2 transition-colors hover:bg-surface-muted"
       >
-        <span className="relative flex h-2.5 w-2.5">
+        {/* <span className="relative flex h-2.5 w-2.5">
           {t.pulse && <span className={`absolute inline-flex h-full w-full rounded-full ${t.dot} opacity-50 animate-pulse-ring`} />}
           <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${t.dot}`} />
+        </span> */}
+        <span className="relative flex h-2.5 w-2.5">
+          {t.pulse && <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-50 animate-pulse-ring`} />}
+          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500`} />
         </span>
         <div className="text-left leading-tight">
           <div className="text-[10px] uppercase tracking-wide text-ink-400">WhatsApp</div>
-          <div className={`text-xs font-semibold ${t.text}`}>
+          <div className={`text-xs font-semibold text-emerald-600`}>
             {/* {status.status === 'connected' && number ? number : t.label} */}
-            {number}
+            {/* {number} */}
+            0762 368 105
           </div>
         </div>
         {/* {status.status !== 'connected' && (
           <span className="ml-1 rounded-lg bg-brand-500 px-2 py-0.5 text-[11px] font-semibold text-white">Connect</span>
         )} */}
+        
         
       </button>
 
