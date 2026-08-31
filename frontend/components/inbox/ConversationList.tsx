@@ -16,6 +16,14 @@ const SENTIMENT_DOT: Record<string, string> = {
   negative: 'bg-rose-500',
 };
 
+// Avatar ring color per channel — lets a mixed WhatsApp/Facebook inbox be
+// told apart at a glance during a live demo, matching each platform's own
+// brand color (WhatsApp green, Messenger blue).
+const CHANNEL_RING: Record<string, string> = {
+  whatsapp: 'bg-emerald-500',
+  facebook: 'bg-blue-600',
+};
+
 function timeAgo(val: unknown) {
   return formatRelativeTime(val, '');
 }
@@ -55,7 +63,7 @@ export function ConversationList({
       <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
         {conversations.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-ink-500">
-            No conversations yet. Incoming WhatsApp chats appear here in real time.
+            No conversations yet. Incoming WhatsApp and Facebook Messenger chats appear here in real time.
           </div>
         ) : (
           conversations.map((c) => {
@@ -69,7 +77,10 @@ export function ConversationList({
                 }`}
               >
                 <div className="relative">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold text-white ${CHANNEL_RING[c.channel] ?? 'bg-brand-500'}`}
+                    title={c.channel}
+                  >
                     {initials(c.contact_name, c.phone)}
                   </div>
                   {c.sentiment && (

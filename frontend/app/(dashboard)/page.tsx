@@ -49,7 +49,7 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
       <Header status={status} connected={connected} />
 
-      <LiveDemoBanner />
+      <LiveDemoBanner status={status} />
 
       <section className="mt-6">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">Today&apos;s Activity</h2>

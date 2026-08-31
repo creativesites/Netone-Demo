@@ -5,6 +5,7 @@ export interface IntegrationStatus {
   whatsapp: { status: 'connected' | 'connecting' | 'disconnected' | 'unknown'; detail?: string };
   leadEngine: { status: 'online'; detail?: string };
   bitrix: { status: 'connected' | 'not_configured'; detail?: string };
+  facebook: { status: 'connected' | 'not_configured'; detail?: string };
   ai: { status: 'connected' | 'fallback'; provider: string };
 }
 
@@ -29,6 +30,9 @@ export async function getIntegrationStatus(): Promise<IntegrationStatus> {
     bitrix: flags.hasBitrix
       ? { status: 'connected', detail: 'Bitrix24 webhook configured' }
       : { status: 'not_configured', detail: 'set BITRIX24_WEBHOOK_URL' },
+    facebook: flags.hasFacebook
+      ? { status: 'connected', detail: 'Messenger Page configured' }
+      : { status: 'not_configured', detail: 'set FACEBOOK_PAGE_ACCESS_TOKEN' },
     ai: flags.hasDeepseek || flags.hasGemini
       ? { status: 'connected', provider: config.ai.provider }
       : { status: 'fallback', provider: 'deterministic' },

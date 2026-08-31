@@ -225,6 +225,7 @@ export interface IntegrationStatus {
   whatsapp: { status: string; detail?: string };
   leadEngine: { status: string; detail?: string };
   bitrix: { status: string; detail?: string };
+  facebook: { status: string; detail?: string };
   ai: { status: string; provider: string };
 }
 
