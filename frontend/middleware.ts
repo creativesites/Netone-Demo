@@ -1,13 +1,30 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// Everything except the auth screens requires a signed-in user.
-const isPublic = createRouteMatcher(['/sign-in(.*)', '/sign-up(.*)']);
+// Public routes: sign-in, sign-up, all backend API routes & SSE stream, and static assets
+const isPublic = createRouteMatcher([
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api(.*)',
+  '/_next(.*)',
+  '/icon.png',
+  '/favicon.ico',
+]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // Optional demo bypass: run the console without forcing Clerk sign-in.
-  if (process.env.DISABLE_AUTH === 'true') return;
+  // Demo mode: if DISABLE_AUTH is set to 'true' or not set (default demo access)
+  // or if CLERK_SECRET_KEY is missing, allow direct access without redirect hangs.
+  const isAuthExplicitlyRequired = process.env.DISABLE_AUTH === 'false' && Boolean(process.env.CLERK_SECRET_KEY);
+
+  if (!isAuthExplicitlyRequired) {
+    return;
+  }
+
   if (!isPublic(req)) {
-    await auth.protect();
+    const signInUrl = new URL('/sign-in', req.url).toString();
+    await auth.protect({
+      unauthenticatedUrl: signInUrl,
+      unauthorizedUrl: signInUrl,
+    });
   }
 });
 

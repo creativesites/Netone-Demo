@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserButton } from '@clerk/nextjs';
+import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { LayoutDashboard, MessagesSquare, Users, BarChart3, SlidersHorizontal, Info, BookOpen, HelpCircle, Menu, X } from 'lucide-react';
 import { AutoReplyToggle } from './AutoReplyToggle';
 import { GuidedTour } from './GuidedTour';
@@ -131,7 +131,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <AutoReplyToggle />
-            <UserButton afterSignOutUrl="/sign-in" />
+            <SignedIn>
+              <UserButton afterSignOutUrl="/sign-in" />
+            </SignedIn>
+            <SignedOut>
+              <Link
+                href="/sign-in"
+                className="rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm transition-colors hover:bg-surface-muted"
+              >
+                Sign In
+              </Link>
+            </SignedOut>
           </div>
         </header>
         <main className="min-w-0 flex-1">{children}</main>

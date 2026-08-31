@@ -4,7 +4,7 @@ import { AuthShell } from '@/components/AuthShell';
 export default function Page() {
   return (
     <AuthShell title="Create an account" subtitle="Get access to the lead intelligence console">
-      <SignUp />
+      <SignUp path="/sign-up" routing="path" />
     </AuthShell>
   );
 }
