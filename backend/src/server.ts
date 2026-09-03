@@ -15,6 +15,7 @@ import { settingsRoutes } from './routes/settings.js';
 import { inboxRoutes } from './routes/inbox.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
 import { facebookRoutes } from './routes/facebook.js';
+import { diagnosticsRoutes } from './routes/diagnostics.js';
 import { kbRoutes } from './routes/kb.js';
 import { seedKnowledgeBase } from './db/kbSeed.js';
 import { healStuckIngestion } from './db/kb.repo.js';
@@ -71,6 +72,7 @@ async function main() {
   await app.register(inboxRoutes);
   await app.register(whatsappRoutes);
   await app.register(facebookRoutes);
+  await app.register(diagnosticsRoutes);
   await app.register(kbRoutes);
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
