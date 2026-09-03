@@ -149,22 +149,49 @@ async function checkFacebook(): Promise<Check> {
     hasVerifyToken: !!config.facebook.verifyToken,
     hasPageToken: !!config.facebook.pageAccessToken,
   };
+  const token = encodeURIComponent(config.facebook.pageAccessToken);
   try {
-    // Is the PAGE actually subscribed to this app's webhooks? This is the
-    // step most often missed — the callback URL verifies fine while no
-    // events are ever delivered.
-    const url = `https://graph.facebook.com/v19.0/${config.facebook.pageId}/subscribed_apps?access_token=${encodeURIComponent(config.facebook.pageAccessToken)}`;
-    const res = await withTimeout(fetch(url), 8000);
-    const j = (await res.json()) as {
-      error?: { message?: string; type?: string };
-      data?: { name?: string; subscribed_fields?: string[] }[];
-    };
-    if (j.error) {
+    // 1. Is the token itself still valid? Page tokens minted from a
+    //    short-lived user token silently expire (ours did, mid-setup), and
+    //    an expired token breaks outbound replies without breaking the
+    //    webhook — so it fails in a way that's easy to misread.
+    const meRes = await withTimeout(
+      fetch(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${token}`),
+      8000
+    );
+    const me = (await meRes.json()) as { id?: string; name?: string; error?: { message?: string } };
+    if (me.error) {
       return {
         key: 'facebook',
         label: 'Facebook Messenger',
         status: 'fail',
-        detail: `Graph API: ${j.error.message ?? j.error.type ?? 'error'} (page token may be expired)`,
+        detail: `Page token rejected: ${me.error.message ?? 'invalid'} — Nia cannot send Messenger replies`,
+        meta,
+      };
+    }
+    meta.page = me.name ? `${me.name} (${me.id})` : me.id;
+
+    // 2. Is the PAGE actually subscribed to this app's webhooks? This is
+    //    the step most often missed — the callback URL verifies fine while
+    //    no events are ever delivered.
+    const url = `https://graph.facebook.com/v19.0/${config.facebook.pageId}/subscribed_apps?access_token=${token}`;
+    const res = await withTimeout(fetch(url), 8000);
+    const j = (await res.json()) as {
+      error?: { message?: string; type?: string; code?: number };
+      data?: { name?: string; subscribed_fields?: string[] }[];
+    };
+    if (j.error) {
+      // #200 just means this token lacks pages_manage_metadata — the token
+      // is still fine for messaging, we simply can't read the subscription.
+      // Don't report that as a hard failure.
+      const cannotVerify = j.error.code === 200;
+      return {
+        key: 'facebook',
+        label: 'Facebook Messenger',
+        status: cannotVerify ? 'warn' : 'fail',
+        detail: cannotVerify
+          ? 'Token valid, but subscription cannot be verified — it lacks pages_manage_metadata. Confirm in Meta → Messenger → Settings that this Page is subscribed to the "messages" field.'
+          : `Graph API: ${j.error.message ?? j.error.type ?? 'error'}`,
         meta,
       };
     }
