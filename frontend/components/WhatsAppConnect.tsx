@@ -15,19 +15,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useWhatsAppStatus, displayWaNumber as displayNumber, type WaStatus } from '@/lib/useWhatsAppStatus';
+import { apiBase as getApiBase } from '@/lib/apiBase';
 
-function getApiBase(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (typeof window !== 'undefined') {
-    if (envUrl && envUrl.includes('localhost') && !window.location.hostname.includes('localhost')) {
-      return '';
-    }
-    if (window.location.protocol === 'https:' && envUrl?.startsWith('http:')) {
-      return '';
-    }
-  }
-  return envUrl || '';
-}
 
 function tone(status?: string) {
   if (status === 'connected') return { dot: 'bg-emerald-500', text: 'text-emerald-600', label: 'Connected', pulse: true };

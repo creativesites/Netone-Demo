@@ -18,19 +18,7 @@ import {
   limit as fsLimit,
 } from 'firebase/firestore';
 import { getDb, firebaseEnabled } from './firebase';
-
-function getApiBase(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (typeof window !== 'undefined') {
-    if (envUrl && envUrl.includes('localhost') && !window.location.hostname.includes('localhost')) {
-      return '';
-    }
-    if (window.location.protocol === 'https:' && envUrl?.startsWith('http:')) {
-      return '';
-    }
-  }
-  return envUrl || '';
-}
+import { apiBase as getApiBase } from './apiBase';
 
 async function restGet<T>(path: string): Promise<T | null> {
   try {
@@ -111,6 +99,12 @@ export function useRealtimeCollection<T>(
       unsub = onSnapshot(
         query(collection(db, colPath), orderBy(orderField, 'desc'), fsLimit(max)),
         (snap) => {
+          // Only let Firestore take over once it actually has data. An EMPTY
+          // snapshot (collection absent, or the backend isn't mirroring
+          // because its service-account file is missing) previously latched
+          // gotSnapshot=true and permanently disabled the REST fallback —
+          // blanking the inbox/leads list even though the API was healthy.
+          if (snap.empty) return;
           gotSnapshot.current = true;
           setItems(snap.docs.map((d) => d.data() as T));
         },
@@ -159,6 +153,9 @@ export function useRealtimeMessages(conversationId: number | null): any[] {
           fsLimit(300)
         ),
         (snap) => {
+          // Same guard as useRealtimeCollection: an empty mirror must not
+          // lock out the REST fallback, or a conversation opens blank.
+          if (snap.empty) return;
           gotSnapshot.current = true;
           setItems(snap.docs.map((d) => d.data()));
         },

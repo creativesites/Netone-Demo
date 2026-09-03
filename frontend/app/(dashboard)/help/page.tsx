@@ -34,10 +34,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useWhatsAppStatus, displayWaNumber } from '@/lib/useWhatsAppStatus';
-import { useRealtimeDoc } from '@/lib/realtime';
-import type { IntegrationStatus } from '@/lib/types';
-
-const FACEBOOK_PAGE_USERNAME = process.env.NEXT_PUBLIC_FACEBOOK_PAGE_USERNAME || '';
 
 // ── Demo Bitrix24 credentials ──────────────────────────────────────────
 // Sandbox/demo CRM only — deliberately displayed here, and only here, so a
@@ -193,34 +189,24 @@ const SCENARIOS: Scenario[] = [
 
 // ── Section 6: what's connected ─────────────────────────────────────────
 
-function demonstratedList(facebookConnected: boolean): string[] {
-  return [
-    'Live dashboard (Dashboard, Inbox, Leads, Analytics)',
-    'A connected WhatsApp number receiving real messages',
-    ...(facebookConnected ? ['A connected Facebook Messenger Page receiving real messages'] : []),
-    'Real-time inbox and conversation view',
-    'AI-assisted understanding of customer messages',
-    "NetOne's configurable qualification rules engine",
-    'Automatic lead creation and enrichment in a sandbox Bitrix24',
-    'Human handoff — a rep can take over a chat from the AI at any time',
-    'Channel and source attribution on every lead',
-  ];
-}
+const DEMONSTRATED = [
+  'Live dashboard (Dashboard, Inbox, Leads, Analytics)',
+  'A connected WhatsApp number receiving real messages',
+  'Real-time inbox and conversation view',
+  'AI-assisted understanding of customer messages',
+  "NetOne's configurable qualification rules engine",
+  'Automatic lead creation and enrichment in a sandbox Bitrix24',
+  'Human handoff — a rep can take over a chat from the AI at any time',
+  'Channel and source attribution on every lead',
+];
 
-function productionChannelsList(facebookConnected: boolean): string[] {
-  const all = ['WhatsApp', 'Facebook', 'Instagram', 'Website enquiries', 'Other approved digital channels'];
-  // Facebook moves out of "potential" once it's actually connected — it's
-  // sitting in the "currently demonstrated" card above instead.
-  return facebookConnected ? all.filter((c) => c !== 'Facebook') : all;
-}
+const PRODUCTION_CHANNELS = ['WhatsApp', 'Facebook', 'Instagram', 'Website enquiries', 'Other approved digital channels'];
 
 export default function HelpPage() {
   const { status } = useWhatsAppStatus();
   const number = displayWaNumber(status.user);
   const connected = status.status === 'connected';
   const { copiedKey, copy } = useCopy();
-  const integrationStatus = useRealtimeDoc<IntegrationStatus>('dashboard/status', '/api/status', (r) => r as IntegrationStatus);
-  const facebookConnected = integrationStatus?.facebook?.status === 'connected';
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-8">
@@ -233,14 +219,10 @@ export default function HelpPage() {
         self-guided: no prior context or explanation is required.
       </p>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-500">
-        <strong className="text-ink-700">
-          WhatsApp{facebookConnected ? ' and Facebook Messenger are' : ' is'} being used in this demonstration as
-          {facebookConnected ? ' live customer-channel examples.' : ' a live customer-channel example.'}
-        </strong>{' '}
-        {facebookConnected ? 'They are' : 'It is'} genuinely connected and genuinely process{facebookConnected ? '' : 'es'} real
-        messages — not a mock-up, and the exact same AI and qualification rules run regardless of which channel a
-        message arrives on. The same underlying architecture is channel-independent and can be extended to
-        Instagram, website enquiries and other approved digital channels.
+        <strong className="text-ink-700">WhatsApp is being used in this demonstration as a live customer-channel
+        example.</strong> It is genuinely connected and genuinely processes real messages — it is not a mock-up.
+        The same underlying architecture is channel-independent and can be extended to Facebook, Instagram,
+        website enquiries and other approved digital channels.
       </p>
 
       {/* Demo disclaimer — up top, impossible to miss */}
@@ -353,11 +335,10 @@ export default function HelpPage() {
             </p>
           </NumberedStep>
 
-          <NumberedStep n={2} title={facebookConnected ? 'Find the connected WhatsApp number or Facebook Page' : 'Find the connected WhatsApp number'}>
+          <NumberedStep n={2} title="Find the connected WhatsApp number">
             <p>
               The WhatsApp integration is already connected for this demonstration — there is nothing to set up
               or pair. The connected NetOne demo line is <strong className="font-bold text-ink-900">0762 368 105</strong> (+260 762 368 105).
-              {facebookConnected && ' A Facebook Page is also connected — either works for the walkthrough below.'}
             </p>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white px-3.5 py-2.5">
               <div className="flex items-center gap-3">
@@ -390,33 +371,6 @@ export default function HelpPage() {
               </div>
             </div>
 
-            {facebookConnected && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white px-3.5 py-2.5">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                    <MessageCircle size={15} />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">
-                      Facebook Messenger — also live for this demo
-                    </div>
-                    <div className="truncate text-base font-bold text-ink-900">
-                      {FACEBOOK_PAGE_USERNAME ? `m.me/${FACEBOOK_PAGE_USERNAME}` : 'Connected Page'}
-                    </div>
-                  </div>
-                </div>
-                {FACEBOOK_PAGE_USERNAME && (
-                  <a
-                    href={`https://m.me/${FACEBOOK_PAGE_USERNAME}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-700"
-                  >
-                    <MessageCircle size={13} /> Message on Facebook
-                  </a>
-                )}
-              </div>
-            )}
           </NumberedStep>
 
           <NumberedStep n={3} title="Send a test enquiry as a customer">
@@ -652,7 +606,7 @@ export default function HelpPage() {
               <CircleCheck size={13} /> Currently demonstrated
             </div>
             <ul className="space-y-1.5 text-[13px] text-ink-700">
-              {demonstratedList(facebookConnected).map((t) => (
+              {DEMONSTRATED.map((t) => (
                 <li key={t} className="flex items-start gap-2">
                   <CircleCheck size={13} className="mt-0.5 shrink-0 text-emerald-500" /> {t}
                 </li>
@@ -664,7 +618,7 @@ export default function HelpPage() {
               <Circle size={13} /> Potential production channels
             </div>
             <ul className="space-y-1.5 text-[13px] text-ink-500">
-              {productionChannelsList(facebookConnected).map((t) => (
+              {PRODUCTION_CHANNELS.map((t) => (
                 <li key={t} className="flex items-start gap-2">
                   <Circle size={13} className="mt-0.5 shrink-0 text-ink-300" /> {t}
                 </li>

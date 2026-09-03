@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useWhatsAppStatus } from '@/lib/useWhatsAppStatus';
 import {
   Smartphone,
   Copy,
@@ -14,17 +15,11 @@ import {
   ChevronUp,
   ArrowRight,
   ShieldCheck,
-  Facebook,
 } from 'lucide-react';
-import type { IntegrationStatus } from '@/lib/types';
 
 const DEMO_PHONE_DISPLAY = '0762 368 105';
 const DEMO_PHONE_INTL = '+260 762 368 105';
 const DEMO_PHONE_DIGITS = '260762368105';
-
-// Set once the Meta Page is live — see .env.example's FACEBOOK_* block.
-// The username after facebook.com/ (not the numeric Page ID).
-const FACEBOOK_PAGE_USERNAME = process.env.NEXT_PUBLIC_FACEBOOK_PAGE_USERNAME || '';
 
 interface Scenario {
   id: string;
@@ -58,11 +53,15 @@ const SCENARIOS: Scenario[] = [
   },
 ];
 
-export function LiveDemoBanner({ status }: { status?: IntegrationStatus | null } = {}) {
+export function LiveDemoBanner() {
   const [copiedNumber, setCopiedNumber] = useState(false);
   const [copiedMsg, setCopiedMsg] = useState<string | null>(null);
   const [minimized, setMinimized] = useState(false);
-  const facebookConnected = status?.facebook?.status === 'connected';
+  // Real connection state, not a hardcoded "online" claim. The WhatsApp
+  // session can silently drop (it did — for 31 hours) and a banner that
+  // always says "Online" hides it until someone tries to demo live.
+  const { status: waStatus } = useWhatsAppStatus();
+  const waOnline = waStatus.status === 'connected';
 
   function copyNumber() {
     navigator.clipboard?.writeText(DEMO_PHONE_DISPLAY);
@@ -82,19 +81,22 @@ export function LiveDemoBanner({ status }: { status?: IntegrationStatus | null }
       <div className="flex items-center justify-between border-b border-brand-100/80 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2.5">
           <span className="relative flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-pulse-ring" />
-            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+            {waOnline && (
+              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-pulse-ring" />
+            )}
+            <span className={`relative inline-flex h-3 w-3 rounded-full ${waOnline ? 'bg-emerald-500' : 'bg-amber-500'}`} />
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-brand-700">
               Live Demo
             </span>
-            <span className="hidden rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 sm:inline-block">
-              WhatsApp Engine Online
-            </span>
-            {facebookConnected && (
-              <span className="hidden rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-800 sm:inline-block">
-                Facebook Messenger Online
+            {waOnline ? (
+              <span className="hidden rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 sm:inline-block">
+                WhatsApp Engine Online
+              </span>
+            ) : (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+                WhatsApp not connected — reconnect before demoing
               </span>
             )}
           </div>
@@ -121,95 +123,48 @@ export function LiveDemoBanner({ status }: { status?: IntegrationStatus | null }
         <div className="p-4 sm:p-6">
           <div className="max-w-3xl">
             <h2 className="text-base font-semibold text-ink-900 sm:text-lg">
-              How to Test: Send a Real {facebookConnected ? 'WhatsApp or Facebook' : 'WhatsApp'} Message from Your Phone
+              How to Test: Send a Real WhatsApp Message from Your Phone
             </h2>
             <p className="mt-1 text-xs text-ink-600 sm:text-sm">
-              Pretend you are a prospective customer inquiring about a laptop. Message our live demo{' '}
-              {facebookConnected ? 'WhatsApp number or Facebook Page' : 'number'} below and watch{' '}
-              <strong>Nia AI qualify the lead, calculate credit risk, and sync it to Bitrix24</strong> in real time on
-              this dashboard — the same AI, the same rules, whichever channel it came from.
+              Pretend you are a prospective customer inquiring about a laptop. Send a WhatsApp message to our
+              live demo number below and watch <strong>Nia AI qualify the lead, calculate credit risk, and sync it to Bitrix24</strong> in real time on this dashboard.
             </p>
           </div>
 
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* Step 1a: WhatsApp Demo Line */}
-              <div className="flex flex-col justify-between rounded-xl border border-emerald-200/80 bg-white p-4 shadow-sm">
-                <div>
-                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
-                    <Smartphone size={14} /> Step 1: WhatsApp Demo Line
-                  </div>
-                  <div className="mt-2 text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">
-                    {DEMO_PHONE_DISPLAY}
-                  </div>
-                  <div className="mt-0.5 text-xs text-ink-400">{DEMO_PHONE_INTL}</div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-12">
+            {/* Step 1: Target Phone Number Card */}
+            <div className="flex flex-col justify-between rounded-xl border border-emerald-200/80 bg-white p-4 shadow-sm lg:col-span-4">
+              <div>
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                  <Smartphone size={14} /> Step 1: WhatsApp Demo Line
                 </div>
-
-                <div className="mt-4 flex flex-col gap-2">
-                  <a
-                    href={`https://wa.me/${DEMO_PHONE_DIGITS}?text=${encodeURIComponent(SCENARIOS[0].message)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
-                  >
-                    <MessageSquare size={14} /> Chat on WhatsApp <ExternalLink size={12} />
-                  </a>
-                  <button
-                    onClick={copyNumber}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-muted px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                  >
-                    {copiedNumber ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                    {copiedNumber ? 'Copied Number!' : 'Copy Number'}
-                  </button>
+                <div className="mt-2 text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">
+                  {DEMO_PHONE_DISPLAY}
                 </div>
+                <div className="mt-0.5 text-xs text-ink-400">{DEMO_PHONE_INTL}</div>
               </div>
 
-              {/* Step 1b: Facebook Messenger Page */}
-              <div className="flex flex-col justify-between rounded-xl border border-blue-200/80 bg-white p-4 shadow-sm">
-                <div>
-                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-blue-700">
-                    <Facebook size={14} /> Step 1: Facebook Messenger
-                  </div>
-                  {facebookConnected && FACEBOOK_PAGE_USERNAME ? (
-                    <>
-                      <div className="mt-2 text-xl font-bold tracking-tight text-ink-900 sm:text-2xl">
-                        m.me/{FACEBOOK_PAGE_USERNAME}
-                      </div>
-                      <div className="mt-0.5 text-xs text-ink-400">Message the connected Page directly</div>
-                    </>
-                  ) : (
-                    <div className="mt-2 text-sm text-ink-500">
-                      Not connected yet — set the <code className="rounded bg-surface-muted px-1 py-0.5 text-[11px]">FACEBOOK_*</code> env
-                      vars and <code className="rounded bg-surface-muted px-1 py-0.5 text-[11px]">NEXT_PUBLIC_FACEBOOK_PAGE_USERNAME</code> to
-                      light this up.
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4 flex flex-col gap-2">
-                  {facebookConnected && FACEBOOK_PAGE_USERNAME ? (
-                    <a
-                      href={`https://m.me/${FACEBOOK_PAGE_USERNAME}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-                    >
-                      <MessageSquare size={14} /> Message on Facebook <ExternalLink size={12} />
-                    </a>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface-muted px-3.5 py-2.5 text-xs font-medium text-ink-400">
-                      <MessageSquare size={14} /> Not yet connected
-                    </span>
-                  )}
-                  <p className="text-center text-[10px] text-ink-400">
-                    Messenger links can&apos;t prefill text — copy a scenario below, then paste it.
-                  </p>
-                </div>
+              <div className="mt-4 flex flex-col gap-2">
+                <a
+                  href={`https://wa.me/${DEMO_PHONE_DIGITS}?text=${encodeURIComponent(SCENARIOS[0].message)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                >
+                  <MessageSquare size={14} /> Chat on WhatsApp <ExternalLink size={12} />
+                </a>
+                <button
+                  onClick={copyNumber}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-muted px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                >
+                  {copiedNumber ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                  {copiedNumber ? 'Copied Number!' : 'Copy Number'}
+                </button>
               </div>
             </div>
 
             {/* Step 2: Test Scenario Prompts */}
-            <div className="rounded-xl border border-brand-200/70 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-brand-200/70 bg-white p-4 shadow-sm lg:col-span-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-brand-700">
                   <Sparkles size={14} /> Step 2: Choose a Test Scenario (or write your own)

@@ -10,6 +10,9 @@ export function Header({
   connected: boolean;
 }) {
   const bitrix = status?.bitrix.status === 'connected';
+  // 'error' means the webhook is configured but the API is actually
+  // rejecting calls — surface that instead of a misleading grey "Not set".
+  const bitrixError = status?.bitrix.status === 'error';
   const aiReal = status?.ai.status === 'connected';
 
   return (
@@ -35,8 +38,8 @@ export function Header({
         />
         <StatusPill
           label="Bitrix24"
-          value={bitrix ? 'Connected' : 'Not set'}
-          tone={bitrix ? 'green' : 'slate'}
+          value={bitrix ? 'Connected' : bitrixError ? 'API error' : 'Not set'}
+          tone={bitrix ? 'green' : bitrixError ? 'amber' : 'slate'}
           pulse={bitrix}
         />
         <StatusPill

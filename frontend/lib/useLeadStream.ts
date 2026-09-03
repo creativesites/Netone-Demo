@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { apiBase as getApiBase } from './apiBase';
 import type {
   ActiveEvent,
   IntegrationStatus,
@@ -10,18 +11,6 @@ import type {
   PipelineStep,
 } from './types';
 
-function getApiBase(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (typeof window !== 'undefined') {
-    if (envUrl && envUrl.includes('localhost') && !window.location.hostname.includes('localhost')) {
-      return '';
-    }
-    if (window.location.protocol === 'https:' && envUrl?.startsWith('http:')) {
-      return '';
-    }
-  }
-  return envUrl || '';
-}
 
 interface StreamState {
   connected: boolean;

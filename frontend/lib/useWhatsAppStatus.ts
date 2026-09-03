@@ -1,19 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { apiBase as getApiBase } from './apiBase';
 
-function getApiBase(): string {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (typeof window !== 'undefined') {
-    if (envUrl && envUrl.includes('localhost') && !window.location.hostname.includes('localhost')) {
-      return '';
-    }
-    if (window.location.protocol === 'https:' && envUrl?.startsWith('http:')) {
-      return '';
-    }
-  }
-  return envUrl || '';
-}
 
 export interface WaStatus {
   status: 'connected' | 'connecting' | 'disconnected' | string;
