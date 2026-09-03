@@ -34,6 +34,14 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useWhatsAppStatus, displayWaNumber } from '@/lib/useWhatsAppStatus';
+import { useRealtimeDoc } from '@/lib/realtime';
+import type { IntegrationStatus } from '@/lib/types';
+
+// The connected Facebook Page. Numeric ID rather than a vanity username —
+// this Page has none set, and this is the ID whose messages actually reach
+// our webhook (verified end to end).
+const FB_PAGE_ID = '1317293141466728';
+const FB_PAGE_NAME = 'NetOne Lead Qualifier Demo';
 
 // ── Demo Bitrix24 credentials ──────────────────────────────────────────
 // Sandbox/demo CRM only — deliberately displayed here, and only here, so a
@@ -140,7 +148,7 @@ function NumberedStep({ n, title, children }: { n: number; title: string; childr
 
 const FLOW_STAGES: { label: string; Icon: LucideIcon; desc: string }[] = [
   { label: 'Customer', Icon: Users, desc: 'A real customer with a genuine enquiry.' },
-  { label: 'WhatsApp', Icon: MessageCircle, desc: 'The live demonstration channel — already connected, ready to use.' },
+  { label: 'WhatsApp / Facebook', Icon: MessageCircle, desc: 'The live demonstration channels — both already connected and ready to use.' },
   { label: 'NetOne Lead Platform', Icon: Target, desc: 'The message is received, normalized and matched to a conversation.' },
   { label: 'AI-assisted understanding', Icon: Brain, desc: 'AI reads the message and extracts intent, product interest and other details.' },
   { label: 'Business qualification rules', Icon: Scale, desc: "NetOne's own configurable rules — not the AI — decide the qualification outcome." },
@@ -189,24 +197,34 @@ const SCENARIOS: Scenario[] = [
 
 // ── Section 6: what's connected ─────────────────────────────────────────
 
-const DEMONSTRATED = [
+function demonstratedList(fbOnline: boolean): string[] {
+  return [
   'Live dashboard (Dashboard, Inbox, Leads, Analytics)',
   'A connected WhatsApp number receiving real messages',
+  ...(fbOnline ? ['A connected Facebook Messenger Page receiving real messages'] : []),
   'Real-time inbox and conversation view',
   'AI-assisted understanding of customer messages',
   "NetOne's configurable qualification rules engine",
   'Automatic lead creation and enrichment in a sandbox Bitrix24',
   'Human handoff — a rep can take over a chat from the AI at any time',
   'Channel and source attribution on every lead',
-];
+  ];
+}
 
-const PRODUCTION_CHANNELS = ['WhatsApp', 'Facebook', 'Instagram', 'Website enquiries', 'Other approved digital channels'];
+function productionChannelsList(fbOnline: boolean): string[] {
+  const all = ['WhatsApp', 'Facebook', 'Instagram', 'Website enquiries', 'Other approved digital channels'];
+  // Once a channel is genuinely live it belongs in "currently demonstrated"
+  // above, not in the "potential" column.
+  return fbOnline ? all.filter((c) => c !== 'Facebook') : all;
+}
 
 export default function HelpPage() {
   const { status } = useWhatsAppStatus();
   const number = displayWaNumber(status.user);
   const connected = status.status === 'connected';
   const { copiedKey, copy } = useCopy();
+  const integration = useRealtimeDoc<IntegrationStatus>('dashboard/status', '/api/status', (r) => r as IntegrationStatus);
+  const fbOnline = integration?.facebook?.status === 'connected';
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 md:px-8 md:py-8">
@@ -219,10 +237,18 @@ export default function HelpPage() {
         self-guided: no prior context or explanation is required.
       </p>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-500">
-        <strong className="text-ink-700">WhatsApp is being used in this demonstration as a live customer-channel
-        example.</strong> It is genuinely connected and genuinely processes real messages — it is not a mock-up.
-        The same underlying architecture is channel-independent and can be extended to Facebook, Instagram,
-        website enquiries and other approved digital channels.
+        <strong className="text-ink-700">
+          {fbOnline
+            ? 'WhatsApp and Facebook Messenger are both being used in this demonstration as live customer channels.'
+            : 'WhatsApp is being used in this demonstration as a live customer-channel example.'}
+        </strong>{' '}
+        {fbOnline ? 'They are' : 'It is'} genuinely connected and genuinely {fbOnline ? 'process' : 'processes'} real
+        messages — not a mock-up.{' '}
+        {fbOnline
+          ? 'A message on either channel runs through exactly the same AI understanding and the same qualification rules, which is the point: one qualification engine, many customer channels.'
+          : ''}{' '}
+        The same underlying architecture is channel-independent and can be extended to{' '}
+        {fbOnline ? '' : 'Facebook, '}Instagram, website enquiries and other approved digital channels.
       </p>
 
       {/* Demo disclaimer — up top, impossible to miss */}
@@ -335,7 +361,7 @@ export default function HelpPage() {
             </p>
           </NumberedStep>
 
-          <NumberedStep n={2} title="Find the connected WhatsApp number">
+          <NumberedStep n={2} title={fbOnline ? 'Find the connected WhatsApp number or Facebook Page' : 'Find the connected WhatsApp number'}>
             <p>
               The WhatsApp integration is already connected for this demonstration — there is nothing to set up
               or pair. The connected NetOne demo line is <strong className="font-bold text-ink-900">0762 368 105</strong> (+260 762 368 105).
@@ -371,6 +397,49 @@ export default function HelpPage() {
               </div>
             </div>
 
+            {fbOnline && (
+              <>
+                <p>
+                  A Facebook Page is also connected — <strong className="font-semibold text-ink-800">{FB_PAGE_NAME}</strong>.
+                  Either channel works for the walkthrough below, and both feed the same qualification engine.
+                </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white px-3.5 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                      <MessageCircle size={15} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                        Facebook Page — live for this demo
+                      </div>
+                      <div className="truncate text-sm font-bold text-ink-900">{FB_PAGE_NAME}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`https://m.me/${FB_PAGE_ID}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-700"
+                    >
+                      <MessageCircle size={13} /> Open in Messenger
+                    </a>
+                    <a
+                      href={`https://www.facebook.com/${FB_PAGE_ID}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 rounded-lg bg-surface-muted px-2.5 py-1.5 text-[11px] font-medium text-ink-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      Visit Page <ExternalLink size={11} />
+                    </a>
+                  </div>
+                </div>
+                <p className="rounded-lg bg-surface-muted px-3 py-2 text-[12px] text-ink-500">
+                  On Messenger, open the Page and send the message yourself — unlike WhatsApp links, Messenger
+                  links cannot pre-fill text, so copy one of the examples in step 3 and paste it.
+                </p>
+              </>
+            )}
           </NumberedStep>
 
           <NumberedStep n={3} title="Send a test enquiry as a customer">
@@ -378,7 +447,7 @@ export default function HelpPage() {
               On your phone, pretend you are a prospective client inquiring about purchasing a laptop or requesting financing on credit. Send a message to <strong className="font-semibold text-ink-800">0762 368 105</strong>.
             </p>
             <p className="text-[12px] text-ink-500">
-              Tap any example prompt below to copy it or open directly in WhatsApp:
+              Tap any example prompt below to copy it{fbOnline ? ' (paste it into Messenger), or open it directly in WhatsApp' : ' or open directly in WhatsApp'}:
             </p>
             <div className="space-y-1.5">
               {FIRST_MESSAGES.map((m) => (
@@ -403,7 +472,7 @@ export default function HelpPage() {
           <NumberedStep n={4} title="Watch the dashboard">
             <p>Within a few seconds, you should see, live:</p>
             <ul className="list-disc space-y-1 pl-4 marker:text-brand-400">
-              <li>The inbound WhatsApp message and the conversation appearing in the Inbox</li>
+              <li>The inbound message and the conversation appearing in the Inbox{fbOnline ? ' — colour-coded by channel, green for WhatsApp and blue for Facebook' : ''}</li>
               <li>The customer&apos;s contact information</li>
               <li>Lead processing running through the pipeline</li>
               <li>Qualification information — a score and the reasoning behind it</li>
@@ -606,7 +675,7 @@ export default function HelpPage() {
               <CircleCheck size={13} /> Currently demonstrated
             </div>
             <ul className="space-y-1.5 text-[13px] text-ink-700">
-              {DEMONSTRATED.map((t) => (
+              {demonstratedList(fbOnline).map((t) => (
                 <li key={t} className="flex items-start gap-2">
                   <CircleCheck size={13} className="mt-0.5 shrink-0 text-emerald-500" /> {t}
                 </li>
@@ -618,7 +687,7 @@ export default function HelpPage() {
               <Circle size={13} /> Potential production channels
             </div>
             <ul className="space-y-1.5 text-[13px] text-ink-500">
-              {PRODUCTION_CHANNELS.map((t) => (
+              {productionChannelsList(fbOnline).map((t) => (
                 <li key={t} className="flex items-start gap-2">
                   <Circle size={13} className="mt-0.5 shrink-0 text-ink-300" /> {t}
                 </li>

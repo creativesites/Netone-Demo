@@ -77,7 +77,8 @@ export default function AboutPage() {
         <div className="card p-5">
           <SectionLabel>What this platform does</SectionLabel>
           <p className="text-sm leading-relaxed text-ink-700">
-            Every enquiry is read by AI, scored against NetOne&apos;s configurable qualification criteria, and
+            Every enquiry — whichever channel it arrives on — is read by AI, scored against NetOne&apos;s
+            configurable qualification criteria, and
             — if it&apos;s a genuine opportunity — created directly in Bitrix24 with the reasoning attached, so
             a rep opens a lead that&apos;s already pre-qualified instead of a cold, unread message.
           </p>
@@ -91,7 +92,7 @@ export default function AboutPage() {
           <StageCard
             Icon={MessageCircle}
             title="1. Channel"
-            desc="Customer sends a message on WhatsApp (today) or another digital channel (roadmap) — no new app for the customer to install."
+            desc="Customer sends a message on WhatsApp or Facebook Messenger (both live today), or another digital channel (roadmap) — no new app for the customer to install."
           />
           <StageCard
             Icon={Target}
@@ -167,6 +168,7 @@ export default function AboutPage() {
           <SectionLabel>What&apos;s live vs. roadmap</SectionLabel>
           <div className="divide-y divide-line">
             <StatusRow label="WhatsApp channel" live />
+            <StatusRow label="Facebook Messenger channel" live />
             <StatusRow label="AI qualification &amp; scoring" live />
             <StatusRow label="Configurable qualification rules" live />
             <StatusRow label="Bitrix24 lead sync" live />
@@ -175,7 +177,7 @@ export default function AboutPage() {
             <StatusRow label="Management analytics" live />
             <StatusRow label="Channel &amp; source attribution" live />
             <StatusRow label="Human handoff (manual takeover)" live />
-            <StatusRow label="Facebook &amp; Instagram channels" live={false} />
+            <StatusRow label="Instagram &amp; website channels" live={false} />
             <StatusRow label="Campaign-level attribution (UTM, ad click-through)" live={false} />
             <StatusRow label="Automated follow-up escalation" live={false} />
             <StatusRow label="AI assist for sales reps" live={false} />
